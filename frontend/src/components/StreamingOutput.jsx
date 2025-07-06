@@ -15,12 +15,24 @@ import { styled, keyframes } from '@mui/material/styles';
 const StreamingOutput = ({ content }) => {
   const outputRef = useRef(null);
 
+  // 过滤掉TEST_CASES_JSON注释，只显示用户应该看到的内容
+  const getDisplayContent = (rawContent) => {
+    if (!rawContent) return '';
+    
+    // 移除TEST_CASES_JSON注释
+    const filteredContent = rawContent.replace(/<!-- TEST_CASES_JSON: .+? -->/g, '');
+    
+    return filteredContent;
+  };
+
   // 当内容更新时自动滚动到底部
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
   }, [content]);
+
+  const displayContent = getDisplayContent(content);
 
   const pulse = keyframes`
     0% {
@@ -121,10 +133,10 @@ const StreamingOutput = ({ content }) => {
             wordBreak: 'break-word'
           }}
         >
-          {content ? (
+          {displayContent ? (
             <StyledMarkdown>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
+                {displayContent}
               </ReactMarkdown>
             </StyledMarkdown>
           ) : (

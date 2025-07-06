@@ -51,9 +51,9 @@ class AIService:
                                 pil_image_copy = pil_image.copy()
                                 ag_image = AGImage(pil_image_copy)
                                 ag_images.append(ag_image)
-                                print(f"成功处理第{i+1}张图片，尺寸: {pil_image.size}")
+                                print(f"成功处理第{i+1}张图片")
                             else:
-                                print(f"跳过第{i+1}张图片：尺寸无效 {pil_image.size}")
+                                print(f"跳过第{i+1}张图片")
                             
                     except Exception as e:
                         import traceback
@@ -63,8 +63,7 @@ class AIService:
             
             # 创建组合提示词
             prompt = TestCasePrompts.get_multimodal_prd_prompt(prd_text, context, requirements)
-            
-            # 创建包含提示词和图片的多模态消息（如果没有图片则只包含文本）
+
             content = [prompt] + ag_images
             multi_modal_message = AGMultiModalMessage(content=content, source="user")
             
@@ -93,6 +92,7 @@ class AIService:
             # 在流式输出结束后，尝试从Markdown中提取测试用例
             test_cases_json = self._extract_test_cases_from_markdown(markdown_buffer)
             if test_cases_json:
+                # 只输出隐藏的JSON注释，供后端处理使用，前端会解析但不显示
                 yield "\n\n<!-- TEST_CASES_JSON: " + json.dumps(test_cases_json) + " -->\n"
                 
         except Exception as e:

@@ -1,10 +1,6 @@
 class TestCasePrompts:
     """测试用例生成相关的提示词模板"""
-    
-
-    
-
-    
+  
     @staticmethod
     def get_multimodal_prd_prompt(prd_text: str, context: str, requirements: str) -> str:
         """获取多模态PRD分析的提示词"""
