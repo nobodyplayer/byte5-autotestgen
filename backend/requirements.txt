@@ -54,7 +54,7 @@ pandas==2.2.2
 pandocfilters==1.5.1
 parso==0.8.4
 pickleshare==0.7.5
-pillow==11.2.1
+pillow~=11.3.0
 pipreqs==0.5.0
 platformdirs==4.3.8
 prompt-toolkit==3.0.51
@@ -64,7 +64,7 @@ pydantic==2.11.7
 pydantic-core==2.33.2
 Pygments==2.19.2
 python-dateutil==2.9.0.post0
-python-dotenv==1.0.1
+python-dotenv~=1.1.1
 python-multipart==0.0.9
 pytz==2025.2
 pywin32==310
@@ -94,3 +94,7 @@ webencodings==0.5.1
 XlsxWriter==3.2.0
 yarg==0.1.9
 zipp==3.23.0
+langchain~=0.3.26
+langchain-community~=0.3.26
+langchain-core~=0.3.66
+langchain-text-splitters~=0.3.8

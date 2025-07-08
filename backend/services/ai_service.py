@@ -1,18 +1,20 @@
 import json
 import os
 from typing import List, Dict, Any, AsyncGenerator
-from dotenv import load_dotenv
 
+from PIL import Image as PILImage
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.base import TaskResult
-from autogen_agentchat.messages import ModelClientStreamingChunkEvent, MultiModalMessage as AGMultiModalMessage, StructuredMessage
+from autogen_agentchat.messages import ModelClientStreamingChunkEvent, MultiModalMessage as AGMultiModalMessage
 from autogen_core import Image as AGImage
-from PIL import Image as PILImage
 
+from models.test_case import TestCase
+from models.state import TestCaseGenerationState
 from utils.llms import model_client
-from models.test_case import TestCase, TestCaseResponse
+from utils.llm_initial_util import initialize_llm
 from .feishu_service import FeishuService
 from .prompts import TestCasePrompts, SystemMessages, ErrorMessages
+from agent import generator, evaluator, reconstructor
 
 
 class AIService:
@@ -201,7 +203,6 @@ class AIService:
         current_test_case = None
         current_steps = []
         in_table = False
-        table_headers = []
 
         for line in lines:
             # 检测新测试用例的开始
@@ -274,3 +275,115 @@ class AIService:
             test_cases.append(current_test_case)
 
         return test_cases
+
+    async def generate_test_cases_full_pipeline(self, prd_text):
+
+        # 初始化大模型、嵌入模型、状态对象
+        llm, embeddings = initialize_llm("Volcengine", "doubao-Seed-1.6-thinking", "doubao-embedding")
+        sta = TestCaseGenerationState(prd_content=prd_text, detected_testPoint=[], generated_cases=[],
+                                            total_evaluation_report={}, single_evaluation_report=[])
+
+        # 文档分析迭代
+        eval_count = 0
+        max_score = 0.0
+        best_record = []
+        # 评估得分大于4.5时跳出迭代
+        while not sta["total_evaluation_report"] or float(sta["total_evaluation_report"].get("score")) < 4.5:
+            # 评估次数抵达最大上限
+            if eval_count > 5:
+                print("需求文档提取需求点，迭代次数已经超过上限")
+                break
+            # 分析出的测试点，如果出现异常则结束本轮迭代
+            detected = generator.analyser_agent_node(sta, llm)
+            if not detected or detected == []:
+                print("分析器：执行文档分析时大模型输出异常", "WARNING")
+                continue
+            sta["detected_testPoint"] = detected
+            # 评估报告，如果出现异常则结束本轮迭代
+            evaluation_report = evaluator.total_evaluator_agent_node(sta, llm)
+            if not evaluation_report or evaluation_report == []:
+                print("评估器：执行测试点评估时大模型输出异常", "WARNING")
+                continue
+            # 检查评估结果是否大于当前的最高分
+            sta["total_evaluation_report"] = evaluation_report
+            if float(evaluation_report["score"]) > max_score:
+                best_record = sta["detected_testPoint"]
+                max_score = evaluation_report["score"]
+            eval_count += 1
+        # 取得分最高的测试点
+        sta["detected_testPoint"] = best_record
+
+        # 测试用例生成
+        while True:
+            test_case = generator.generator_agent_node(sta, llm, embeddings)
+            if not test_case or test_case == []:
+                print("生成器：执行测试用例生成时大模型输出异常", "WARNING")
+            else:
+                sta["generated_cases"] = test_case
+                break
+
+        # 测试用例迭代
+        reconstruct_count = 0
+        final_generated_cases = []
+        history_case = {}
+        history_evaluation_report = {}
+        while sta["generated_cases"]:
+            if reconstruct_count > 5:
+                print("测试案例重构次数抵达上限", "WARNING")
+                break
+            # 生成报告
+            single_eval_report = evaluator.single_evaluator_agent_node(sta, llm, embeddings)
+            if not single_eval_report or single_eval_report == []:
+                print("单例评估器：执行测试用例评估时大模型输出异常", "WARNING")
+            sta["single_evaluation_report"] = single_eval_report
+
+            # 集合按case_ID做检索，分高质量用例、低质量用例、高质量评估、低质量评估集合
+            score_map = {item['case_ID']: item for item in sta["single_evaluation_report"]}
+            high_quality_cases = []
+            low_quality_cases = []
+            low_quality_scores = []
+
+            # 遍历主测试用例列表
+            for case in sta["generated_cases"]:
+                # 按ID索引
+                case_id = case.get("case_ID")
+                score_obj = score_map.get(case_id)
+                if score_obj and isinstance(score_obj, dict):
+                    # 具有相应的评分
+                    score_str = score_obj.get('score')
+                    try:
+                        score_value = float(score_str)
+                        if score_value >= 4.5:
+                            # 添加到高质量组
+                            high_quality_cases.append(case)
+                        else:
+                            # 得分比上次高则进入待优化组
+                            if history_case == {} or float(history_case.get(case_id).get('score')) < score_value:
+                                low_quality_cases.append(case)
+                                low_quality_scores.append(score_obj)
+                            # 得分比上次低则丢弃，取历史版本
+                            else:
+                                low_quality_cases.append(history_case.get(case_id))
+                                low_quality_scores.append(history_evaluation_report.get(case_id))
+                    except (ValueError, TypeError):
+                        # 如果分数无效，同步添加到待优化组
+                        print(f"警告: Case ID '{case_id}' 的分数 '{score_str}' 无效，已同步归入待优化组。")
+                        low_quality_cases.append(case)
+                        low_quality_scores.append(score_obj)
+                else:
+                    # 如果找不到评分，只将测试用例归入待优化组
+                    print(f"警告: 未找到 Case ID '{case_id}' 的评分，用例已归入待优化组。")
+                    low_quality_cases.append(case)
+
+            # 记录待优化信息
+            final_generated_cases.extend(high_quality_cases)
+            sta["generated_cases"] = low_quality_cases
+            sta["single_evaluation_report"] = low_quality_scores
+            # 更新历史记录
+            history_case = {item['case_ID']: item for item in sta["generated_cases"]}
+            history_evaluation_report = {item['case_ID']: item for item in sta["single_evaluation_report"]}
+            # 开始重构测试用例
+            sta["generated_cases"] = reconstructor.reconstructor_agent_node(sta, llm, embeddings)
+            reconstruct_count += 1
+
+        return final_generated_cases
