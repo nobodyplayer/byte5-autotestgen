@@ -29,7 +29,7 @@ LLM_PROVIDER_CONFIG = {
         },
         "llm_module": "langchain_openai",
         "llm_class": "ChatOpenAI",
-        "embeddings_module": "doubaoEmbedding.doubaoEmbedding",
+        "embeddings_module": "doubao.doubaoEmbedding",
         "embeddings_class": "DoubaoEmbedding",
         "api_key": VOLCENGINE_API_KEY,
         "api_secret": VOLCENGINE_API_SECRET,

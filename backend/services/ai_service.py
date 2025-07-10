@@ -24,6 +24,8 @@ class AIService:
             self.feishu_service = FeishuService(feishu_app_id, feishu_app_secret)
         else:
             self.feishu_service = None
+        # 初始化AI模型
+        self.llm, self.embeddings = initialize_llm("Volcengine", "doubao-Seed-1.6-thinking", "doubao-embedding")
 
     async def generate_test_cases_from_multimodal_prd_stream(
         self,
@@ -278,112 +280,142 @@ class AIService:
 
     async def generate_test_cases_full_pipeline(self, prd_text):
 
-        # 初始化大模型、嵌入模型、状态对象
-        llm, embeddings = initialize_llm("Volcengine", "doubao-Seed-1.6-thinking", "doubao-embedding")
-        sta = TestCaseGenerationState(prd_content=prd_text, detected_testPoint=[], generated_cases=[],
-                                            total_evaluation_report={}, single_evaluation_report=[])
+        try:
+            # 初始化大模型、嵌入模型、状态对象
 
-        # 文档分析迭代
-        eval_count = 0
-        max_score = 0.0
-        best_record = []
-        # 评估得分大于4.5时跳出迭代
-        while not sta["total_evaluation_report"] or float(sta["total_evaluation_report"].get("score")) < 4.5:
-            # 评估次数抵达最大上限
-            if eval_count > 5:
-                print("需求文档提取需求点，迭代次数已经超过上限")
-                break
-            # 分析出的测试点，如果出现异常则结束本轮迭代
-            detected = generator.analyser_agent_node(sta, llm)
-            if not detected or detected == []:
-                print("分析器：执行文档分析时大模型输出异常", "WARNING")
-                continue
-            sta["detected_testPoint"] = detected
-            # 评估报告，如果出现异常则结束本轮迭代
-            evaluation_report = evaluator.total_evaluator_agent_node(sta, llm)
-            if not evaluation_report or evaluation_report == []:
-                print("评估器：执行测试点评估时大模型输出异常", "WARNING")
-                continue
-            # 检查评估结果是否大于当前的最高分
-            sta["total_evaluation_report"] = evaluation_report
-            if float(evaluation_report["score"]) > max_score:
-                best_record = sta["detected_testPoint"]
-                max_score = evaluation_report["score"]
-            eval_count += 1
-        # 取得分最高的测试点
-        sta["detected_testPoint"] = best_record
+            sta = TestCaseGenerationState(prd_content=prd_text, detected_testPoint=[], generated_cases=[],
+                                                total_evaluation_report={}, single_evaluation_report=[], vectorstore=None)
+            yield "### 阶段一：需求文档分析与测试点提取\n"
+            yield f"分析中... (最多进行5轮迭代，目标评估分数 > 4.5)\n\n"
 
-        # 测试用例生成
-        while True:
-            test_case = generator.generator_agent_node(sta, llm, embeddings)
-            if not test_case or test_case == []:
-                print("生成器：执行测试用例生成时大模型输出异常", "WARNING")
-            else:
-                sta["generated_cases"] = test_case
-                break
+            # --- 1.文档分析迭代 ---
+            eval_count = 0
+            retry_count = 0
+            max_score = 0.0
+            best_record = []
+            # 评估得分大于4.5时跳出迭代
+            while not sta["total_evaluation_report"] or float(sta["total_evaluation_report"].get("score")) < 4.5:
+                # 评估次数抵达最大上限
+                if eval_count > 5:
+                    yield f"分析迭代达到上限。最终选用得分最高的测试点集。\n\n"
+                    break
+                # 分析出的测试点，如果出现异常则结束本轮迭代
+                detected = generator.analyser_agent_node(sta, self.llm)
+                if not detected or detected == []:
+                    yield f"**警告**: 在第 {eval_count + 1} 轮分析中，大模型未能提取出有效的测试点，终止分析。\n"
+                    retry_count += 1
+                    if retry_count > 5:
+                        exit(0)
+                    continue
+                sta["detected_testPoint"] = detected
+                # 评估报告，如果出现异常则结束本轮迭代
+                evaluation_report = evaluator.total_evaluator_agent_node(sta, self.llm)
+                if not evaluation_report or evaluation_report == []:
+                    yield f"**警告**: 在第 {eval_count + 1} 轮评估中，大模型未能返回有效的评估分数，终止分析。\n"
+                    continue
+                # 检查评估结果是否大于当前的最高分
+                sta["total_evaluation_report"] = evaluation_report
+                current_score = float(evaluation_report.get("score", 0))
+                yield f"- 第 {eval_count + 1} 轮分析完成，评估得分: **{current_score:.2f}**\n"
+                if float(evaluation_report["score"]) > max_score:
+                    best_record = sta["detected_testPoint"]
+                    max_score = evaluation_report["score"]
+                eval_count += 1
+                if current_score >= 4.5:
+                    yield f"分析质量已达标！最终选用得分最高的测试点集。\n\n"
+                    break
+            # 取得分最高的测试点
+            sta["detected_testPoint"] = best_record
 
-        # 测试用例迭代
-        reconstruct_count = 0
-        final_generated_cases = []
-        history_case = {}
-        history_evaluation_report = {}
-        while sta["generated_cases"]:
-            if reconstruct_count > 5:
-                print("测试案例重构次数抵达上限", "WARNING")
-                break
-            # 生成报告
-            single_eval_report = evaluator.single_evaluator_agent_node(sta, llm, embeddings)
-            if not single_eval_report or single_eval_report == []:
-                print("单例评估器：执行测试用例评估时大模型输出异常", "WARNING")
-            sta["single_evaluation_report"] = single_eval_report
 
-            # 集合按case_ID做检索，分高质量用例、低质量用例、高质量评估、低质量评估集合
-            score_map = {item['case_ID']: item for item in sta["single_evaluation_report"]}
-            high_quality_cases = []
-            low_quality_cases = []
-            low_quality_scores = []
-
-            # 遍历主测试用例列表
-            for case in sta["generated_cases"]:
-                # 按ID索引
-                case_id = case.get("case_ID")
-                score_obj = score_map.get(case_id)
-                if score_obj and isinstance(score_obj, dict):
-                    # 具有相应的评分
-                    score_str = score_obj.get('score')
-                    try:
-                        score_value = float(score_str)
-                        if score_value >= 4.5:
-                            # 添加到高质量组
-                            high_quality_cases.append(case)
-                        else:
-                            # 得分比上次高则进入待优化组
-                            if history_case == {} or float(history_case.get(case_id).get('score')) < score_value:
-                                low_quality_cases.append(case)
-                                low_quality_scores.append(score_obj)
-                            # 得分比上次低则丢弃，取历史版本
-                            else:
-                                low_quality_cases.append(history_case.get(case_id))
-                                low_quality_scores.append(history_evaluation_report.get(case_id))
-                    except (ValueError, TypeError):
-                        # 如果分数无效，同步添加到待优化组
-                        print(f"警告: Case ID '{case_id}' 的分数 '{score_str}' 无效，已同步归入待优化组。")
-                        low_quality_cases.append(case)
-                        low_quality_scores.append(score_obj)
+            # --- 2.初始测试用例生成 ---
+            yield "### 阶段二：初始测试用例生成\n"
+            yield "生成中...\n\n"
+            while True:
+                test_cases = generator.generator_agent_node(sta, self.llm, self.embeddings)
+                if not test_cases or test_cases == []:
+                    yield "**警告**: 初始测试用例生成失败，即将再次重试。\n"
                 else:
-                    # 如果找不到评分，只将测试用例归入待优化组
-                    print(f"警告: 未找到 Case ID '{case_id}' 的评分，用例已归入待优化组。")
-                    low_quality_cases.append(case)
+                    sta["generated_cases"] = test_cases
+                    yield f"已成功生成 **{len(test_cases)}** 条初始测试用例。\n\n"
+                    break
 
-            # 记录待优化信息
-            final_generated_cases.extend(high_quality_cases)
-            sta["generated_cases"] = low_quality_cases
-            sta["single_evaluation_report"] = low_quality_scores
-            # 更新历史记录
-            history_case = {item['case_ID']: item for item in sta["generated_cases"]}
-            history_evaluation_report = {item['case_ID']: item for item in sta["single_evaluation_report"]}
-            # 开始重构测试用例
-            sta["generated_cases"] = reconstructor.reconstructor_agent_node(sta, llm, embeddings)
-            reconstruct_count += 1
+            # --- 3.测试用例迭代 ---
+            yield "### 阶段三：测试用例评估与迭代重构\n"
+            yield "评估与重构中... (最多进行5轮)\n\n"
 
-        return final_generated_cases
+            reconstruct_count = 0
+            final_generated_cases = []
+            history_case = {}
+            history_evaluation_report = {}
+            while sta["generated_cases"]:
+                yield f"--- 开始第 {reconstruct_count + 1} 轮重构 ---\n"
+                if reconstruct_count > 5:
+                    print("测试案例重构次数抵达上限", "WARNING")
+                    break
+                yield f"本轮需要优化 **{len(sta["generated_cases"])}** 条用例...\n"
+                # 生成报告
+                single_eval_report = evaluator.single_evaluator_agent_node(sta, self.llm, self.embeddings)
+                if not single_eval_report or single_eval_report == []:
+                    print("单例评估器：执行测试用例评估时大模型输出异常", "WARNING")
+                sta["single_evaluation_report"] = single_eval_report
+
+                # 集合按case_ID做检索，分高质量用例、低质量用例、高质量评估、低质量评估集合
+                score_map = {item['case_ID']: item for item in sta["single_evaluation_report"]}
+                high_quality_cases = []
+                low_quality_cases = []
+                low_quality_scores = []
+
+                # 遍历主测试用例列表
+                for case in sta["generated_cases"]:
+                    # 按ID索引
+                    case_id = case.get("case_ID")
+                    score_obj = score_map.get(case_id)
+                    if score_obj and isinstance(score_obj, dict):
+                        # 具有相应的评分
+                        score_str = score_obj.get('score')
+                        try:
+                            score_value = float(score_str)
+                            if score_value >= 4.5:
+                                # 添加到高质量组
+                                high_quality_cases.append(case)
+                            else:
+                                # 得分比上次高则进入待优化组
+                                if history_case == {} or float(history_case.get(case_id).get('score')) < score_value:
+                                    low_quality_cases.append(case)
+                                    low_quality_scores.append(score_obj)
+                                # 得分比上次低则丢弃，取历史版本
+                                else:
+                                    low_quality_cases.append(history_case.get(case_id))
+                                    low_quality_scores.append(history_evaluation_report.get(case_id))
+                        except (ValueError, TypeError):
+                            # 如果分数无效，同步添加到待优化组
+                            yield f"警告: Case ID '{case_id}' 的分数 '{score_str}' 无效，已同步归入待优化组。"
+                            low_quality_cases.append(case)
+                            low_quality_scores.append(score_obj)
+                    else:
+                        # 如果找不到评分，只将测试用例归入待优化组
+                        yield f"警告: 未找到 Case ID '{case_id}' 的评分，用例已归入待优化组。"
+                        low_quality_cases.append(case)
+
+                # 记录待优化信息
+                final_generated_cases.extend(high_quality_cases)
+                sta["generated_cases"] = low_quality_cases
+                sta["single_evaluation_report"] = low_quality_scores
+                # 更新历史记录
+                history_case = {item['case_ID']: item for item in sta["generated_cases"]}
+                history_evaluation_report = {item['case_ID']: item for item in sta["single_evaluation_report"]}
+                # 开始重构测试用例
+                sta["generated_cases"] = reconstructor.reconstructor_agent_node(sta, self.llm, self.embeddings)
+                reconstruct_count += 1
+            yield f"--- 所有迭代重构完成 ---\n\n"
+            yield "### 阶段四：生成最终结果\n"
+            final_markdown = self._generate_markdown_from_test_cases(final_generated_cases)
+            yield final_markdown
+            # 在流的末尾，以HTML注释的形式，悄悄地附上JSON数据，供前端解析
+            yield "\n\n"
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"!!!!!!!!!! 在full_pipeline中发生严重错误 !!!!!!!!!!\n{error_details}")
+            yield f"\n\n**致命错误:** 在执行管线时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"

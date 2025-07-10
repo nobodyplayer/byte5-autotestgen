@@ -16,14 +16,15 @@ router = APIRouter(
 # 如果上传目录不存在，则创建
 os.makedirs("uploads", exist_ok=True)
 
+
 @router.post("/generate")
 async def generate_test_cases(
-    request: Request,
-    prd_text: str = Form(None),
-    images: List[UploadFile] = File(default=[]),
-    feishu_url: str = Form(None),
-    context: str = Form(...),
-    requirements: str = Form(...)
+        request: Request,
+        prd_text: str = Form(None),
+        images: List[UploadFile] = File(default=[]),
+        feishu_url: str = Form(None),
+        context: str = Form(...),
+        requirements: str = Form(...)
 ):
     """
     生成测试用例的核心API端点。
@@ -87,6 +88,7 @@ async def generate_test_cases(
     else:
         raise HTTPException(status_code=400, detail="请提供有效的输入")
 
+
 @router.post("/export")
 async def export_test_cases(test_cases: List[Union[TestCase, Dict[str, Any]]]):
     """
@@ -120,6 +122,7 @@ async def export_test_cases(test_cases: List[Union[TestCase, Dict[str, Any]]]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error exporting test cases: {str(e)}")
 
+
 @router.get("/download/{filename}")
 async def download_excel(filename: str):
     """
@@ -149,7 +152,8 @@ async def download_excel(filename: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-@router.get("/fullPipeline")
+
+@router.post("/fullPipeline")
 async def full_pipeline(
         request: Request,
         prd_text: str = Form(None)
@@ -161,4 +165,3 @@ async def full_pipeline(
         ),
         media_type="text/markdown"
     )
-
