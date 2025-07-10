@@ -8,7 +8,6 @@ EMBEDDINGS_API_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3/embeddings"
 CHUNK_SIZE = 1024
 CHUNK_OVERLAP = 128
 RETRIEVER_SEARCH_K = 10
-
 # 例子输入batch_size
 CASE_GENERATION_BATCH_SIZE = 25
 CASE_EVALUATION_BATCH_SIZE = 15
@@ -16,17 +15,17 @@ CASE_RECONSTRUCTION_BATCH_SIZE = 25
 
 # LLM提供商配置
 LLM_PROVIDER_CONFIG = {
-    "Volcengine":{
-        "model":["deepseek-r1", "doubao-1.5-vision-pro", "doubao-1.5-vision-lite"],
-        "model_endpoint":{
-            "deepseek":"deepseek-r1-250528",
-            "doubao-pro":"doubao-1.5-vision-pro-250328",
+    "Volcengine": {
+        "model": ["deepseek-r1", "doubao-1.5-vision-pro", "doubao-1.5-vision-lite"],
+        "model_endpoint": {
+            "deepseek": "deepseek-r1-250528",
+            "doubao-pro": "doubao-1.5-vision-pro-250328",
             "doubao-lite": "doubao-1.5-vision-lite-250315",
             "doubao-embedding-large-text": "doubao-embedding-large-text-250515",
             "doubao-1.5pro-32k": "doubao-1-5-pro-32k-250115",
             "doubao-embedding": "doubao-embedding-text-240715",
-            "doubao-Seed-1.6-flash" : "doubao-seed-1-6-flash-250615",
-            "doubao-Seed-1.6-thinking" : "doubao-seed-1-6-thinking-250615"
+            "doubao-Seed-1.6-flash": "doubao-seed-1-6-flash-250615",
+            "doubao-Seed-1.6-thinking": "doubao-seed-1-6-thinking-250615"
         },
         "llm_module": "langchain_openai",
         "llm_class": "ChatOpenAI",
@@ -193,4 +192,31 @@ RECONSTRUCTION_AGENT_PROMPT = """
 ```{context}```
 
 ```{input}```
+"""
+
+# 优先级评估器Prompt
+PRIORITY_EVALUATION_PROMPT = """
+# 角色
+你是一位资深的软件质量保证（QA）专家。
+
+# 任务
+你的任务是根据我提供的【需求文档上下文】和【测试用例】，为该测试用例分配一个优先级。
+
+# 评分标准
+- **高 (High)**: 测试的是产品的核心功能、主干流程、涉及支付、安全或核心数据的功能。如果这里出问题，会严重影响产品可用性。
+- **中 (Medium)**: 测试的是比较重要但不那么核心的次要功能，或者是核心功能的一些特定分支流程。
+- **低 (Low)**: 测试的是UI细节、不常用的辅助功能、或特定场景下的边缘问题。
+
+# 需求文档上下文
+{relevant_prd_context}
+
+# 待评估的测试用例
+{test_case_content}
+
+# 输出格式
+请严格按照以下JSON格式输出，不要有任何多余的解释：
+{{
+  "priority": "高 | 中 | 低",
+  "justification": "请在这里用一句话简要解释你为什么给出这个优先级"
+}}
 """

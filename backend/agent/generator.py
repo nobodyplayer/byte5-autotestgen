@@ -9,7 +9,6 @@ from langchain.chains.retrieval import create_retrieval_chain
 from operator import itemgetter
 import asyncio
 
-
 from config.config import (
     DETECTOR_AGENT_PROMPT, CHUNK_SIZE, CHUNK_OVERLAP, RETRIEVER_SEARCH_K, GENERATOR_AGENT_PROMPT,
     CASE_GENERATION_BATCH_SIZE
@@ -19,7 +18,7 @@ from utils.json_parse_util import parse_json_output
 from models.state import TestCaseGenerationState
 
 
-def analyser_agent_node(state:TestCaseGenerationState, llm: BaseChatModel) -> list:
+def analyser_agent_node(state: TestCaseGenerationState, llm: BaseChatModel) -> list:
     """
     分析器/检测器节点。
 
@@ -78,7 +77,8 @@ def analyser_agent_node(state:TestCaseGenerationState, llm: BaseChatModel) -> li
         print(f"错误信息: {e}")
         return []
 
-async def generator_agent_node(state:TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings) -> list:
+
+async def generator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings) -> list:
     """
     测试用例生成器节点。
 
@@ -129,7 +129,6 @@ async def generator_agent_node(state:TestCaseGenerationState, llm: BaseChatModel
     else:
         vectorstore = state["vectorstore"]
 
-
     # RAG
     try:
         retriever = vectorstore.as_retriever(search_kwargs={"k": RETRIEVER_SEARCH_K})
@@ -154,7 +153,8 @@ async def generator_agent_node(state:TestCaseGenerationState, llm: BaseChatModel
             if i == batch_num:
                 input_batch = str(state["detected_testPoint"][i * CASE_GENERATION_BATCH_SIZE:])
             else:
-                input_batch = str(state["detected_testPoint"][i * CASE_GENERATION_BATCH_SIZE : (i + 1) * CASE_GENERATION_BATCH_SIZE])
+                input_batch = str(
+                    state["detected_testPoint"][i * CASE_GENERATION_BATCH_SIZE: (i + 1) * CASE_GENERATION_BATCH_SIZE])
             task = retriever_chain.ainvoke({"input": input_batch})
             tasks.append(task)
         batch_results_list = await asyncio.gather(*tasks)
@@ -172,7 +172,3 @@ async def generator_agent_node(state:TestCaseGenerationState, llm: BaseChatModel
         print(f"错误类型: {type(e).__name__}")
         print(f"错误信息: {e}")
         return []
-
-
-
-

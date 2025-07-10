@@ -13,12 +13,11 @@ from config.config import (
     TOTAL_EVALUATOR_AGENT_PROMPT, CASE_EVALUATION_BATCH_SIZE
 )
 
-
 from models.state import TestCaseGenerationState
 from utils.json_parse_util import parse_json_output
 
 
-async def single_evaluator_agent_node(state:TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings):
+async def single_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings):
     """
     单例评估器节点（微观评估）。
 
@@ -93,7 +92,8 @@ async def single_evaluator_agent_node(state:TestCaseGenerationState, llm: BaseCh
             if i == batch_num:
                 input_batch = str(state["generated_cases"][i * CASE_EVALUATION_BATCH_SIZE:])
             else:
-                input_batch = str(state["generated_cases"][i * CASE_EVALUATION_BATCH_SIZE : (i + 1) * CASE_EVALUATION_BATCH_SIZE])
+                input_batch = str(
+                    state["generated_cases"][i * CASE_EVALUATION_BATCH_SIZE: (i + 1) * CASE_EVALUATION_BATCH_SIZE])
             task = retriever_chain.ainvoke({"input": input_batch})
             tasks.append(task)
         batch_result_list = await asyncio.gather(*tasks)
@@ -113,10 +113,7 @@ async def single_evaluator_agent_node(state:TestCaseGenerationState, llm: BaseCh
         return []
 
 
-
-
-
-def total_evaluator_agent_node(state:TestCaseGenerationState, llm: BaseChatModel):
+def total_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel):
     """
     总体评估器节点（宏观评估）。
 
