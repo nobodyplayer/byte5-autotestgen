@@ -131,60 +131,6 @@ class AIService:
             yield f"\n\n**错误:** {error_msg}\n\n"
             
 
-
-    def _test_case_to_dict(self, test_case: TestCase) -> Dict[str, Any]:
-        """
-        将TestCase对象转换为字典格式
-        """
-        return {
-            "id": test_case.id,
-            "title": test_case.title,
-            "priority": test_case.priority,
-            "description": test_case.description,
-            "preconditions": test_case.preconditions,
-            "steps": [{
-                "step_number": step.step_number,
-                "description": step.description,
-                "expected_result": step.expected_result
-            } for step in test_case.steps],
-            "status": test_case.status
-        }
-
-    def _generate_markdown_from_test_cases(self, test_cases: List[TestCase]) -> str:
-        """
-        从测试用例列表生成Markdown格式的输出
-        """
-        markdown_lines = []
-        
-        for test_case in test_cases:
-            # 测试用例标题
-            markdown_lines.append(f"## {test_case.id}: {test_case.title}")
-            markdown_lines.append("")
-            
-            # 基本信息
-            markdown_lines.append(f"**优先级:** {test_case.priority}")
-            markdown_lines.append(f"**描述:** {test_case.description}")
-            
-            if test_case.preconditions:
-                markdown_lines.append(f"**前置条件:** {test_case.preconditions}")
-            
-            markdown_lines.append("")
-            
-            # 测试步骤表格
-            markdown_lines.append("### 测试步骤")
-            markdown_lines.append("")
-            markdown_lines.append("| # | 步骤描述 | 预期结果 |")
-            markdown_lines.append("| --- | --- | --- |")
-            
-            for step in test_case.steps:
-                markdown_lines.append(f"| {step.step_number} | {step.description} | {step.expected_result} |")
-            
-            markdown_lines.append("")
-            markdown_lines.append("---")
-            markdown_lines.append("")
-        
-        return "\n".join(markdown_lines)
-
     def _extract_test_cases_from_markdown(self, markdown_text: str) -> List[Dict[str, Any]]:
         """
         从Markdown文本中提取测试用例信息
