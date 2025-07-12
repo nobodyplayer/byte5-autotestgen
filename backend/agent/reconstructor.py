@@ -1,23 +1,25 @@
 import asyncio
-
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.retrieval import create_retrieval_chain
-from langchain_core.language_models import BaseChatModel
-from langchain_core.embeddings import Embeddings
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
+import logging
 from operator import itemgetter
 
-from models.state import TestCaseGenerationState
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+
+import utils.agent_util as agent_util
 from config.config import (
-    CHUNK_SIZE, CHUNK_OVERLAP, RETRIEVER_SEARCH_K, CASE_RECONSTRUCTION_BATCH_SIZE,
-    RECONSTRUCTION_AGENT_PROMPT
+    RETRIEVER_SEARCH_K, CASE_RECONSTRUCTION_BATCH_SIZE,
+    RECONSTRUCTION_AGENT_PROMPT, QUERY_GENERATE_PROMPT
 )
+from models.state import TestCaseGenerationState
 from utils.json_parse_util import parse_json_output
 
+logger = logging.getLogger(__name__)
 
-async def reconstructor_agent_node(state:TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings) -> list:
+
+async def reconstructor_agent_node(state: TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings) -> list:
     """
     测试用例重构器节点。
 
@@ -41,85 +43,119 @@ async def reconstructor_agent_node(state:TestCaseGenerationState, llm: BaseChatM
         list: 一个包含所有经过重构和修正后的测试用例（通常是字典格式）的列表。
               如果发生严重错误，则返回空列表。
    """
-    print("--- Node: 重构器")
+    # --- 1.参数检查 ---
+    logger.info("--- Node: 重构器")
     if not llm:
-        print("没有可用的大语言模型")
+        logger.error("没有可用的大语言模型")
+        return []
     if not embeddings:
-        print("没有可用的嵌入")
+        logger.error("没有可用的嵌入模型")
+        return []
     if not state or state["prd_content"] is None:
-        print("需求文档为空")
-    if not state or state["detected_testPoint"] == []:
-        print("未检测到测试点")
+        logger.error("需求文档为空")
+        return []
+    if not state or state["detected_test_point_dict"] == {}:
+        logger.error("未检测到测试点")
+        return []
+    if not state or state["generated_cases"] == []:
+        logger.error("没有生成的测试案例")
+        return []
     if not state or state["single_evaluation_report"] == []:
-        print("没有评估文档")
+        logger.error("没有评估文档")
+        return []
 
-    # 文本向量化
-    if state.get("vectorstore") is None:
-        try:
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
-            )
-            splits = text_splitter.split_text(state["prd_content"])
-            if not splits:
-                print("文本分割失败")
-                return []
-            vectorstore = FAISS.from_texts(splits, embedding=embeddings)
-        except Exception as e:
-            print(f"!!!!!!!!!! 文本向量化过程中发生错误 !!!!!!!!!!")
-            print(f"错误类型: {type(e).__name__}")
-            print(f"错误信息: {e}")
-            return []
-        state["vectorstore"] = vectorstore  # 存入状态
+    # --- 2.文本向量化 ---
+    if state.get("prd_vector") is None:
+        vectorstore = agent_util.text_split(state["prd_content"], embeddings)
+        state["prd_vector"] = vectorstore  # 存入状态
     else:
-        vectorstore = state["vectorstore"]
+        vectorstore = state["prd_vector"]
 
-    # RAG
+    # --- 3.超级查询 + RAG链条构建
     try:
+        # 超级查询生成链条
+        query_generator_prompt = ChatPromptTemplate.from_template(QUERY_GENERATE_PROMPT)
+        query_generator_chain = query_generator_prompt | llm | StrOutputParser()
+        # 检索器
         retriever = vectorstore.as_retriever(search_kwargs={"k": RETRIEVER_SEARCH_K})
         case_generation_prompt = ChatPromptTemplate.from_template(RECONSTRUCTION_AGENT_PROMPT)
-        document_chain = create_stuff_documents_chain(llm, case_generation_prompt)
-        retriever_chain = create_retrieval_chain(retriever, document_chain) | itemgetter("answer")
+        # 整体的端到端链条
+        end_to_end_chain = (
+            # ↓ 原始输入input存储在'original_input'键中并透传
+            RunnablePassthrough.assign(
+                original_input=itemgetter("input")
+            )
+            # ↑ e.g. {"input": "测试点列表...", "original_input": "测试点列表..."}
+            # ↓ 使用原始输入生成“超级查询”，并将其结果存储在'super_query'键中
+            | RunnablePassthrough.assign(
+                super_query=itemgetter("original_input") | query_generator_chain
+            )
+            # ↑ e.g. {"input": ..., "original_input": ..., "super_query": "超级查询..."}
+            # ↓ 使用“超级查询”进行RAG检索，并将结果存储在"context"键中
+            | RunnablePassthrough.assign(
+                context=itemgetter("super_query") | retriever
+            )
+            # ↑ {"input": ..., "original_input": ..., "super_query": ..., "context": [Docs...]}
+            # ↓ Prompt模板填充
+            | {
+                "context": itemgetter("context"),
+                "input": itemgetter("original_input")
+            }
+            | case_generation_prompt
+            | llm
+            | JsonOutputParser()
+        )
     except Exception as e:
-        print(f"!!!!!!!!!! 构建过程链过程中发生错误 !!!!!!!!!!")
-        print(f"错误类型: {type(e).__name__}")
-        print(f"错误信息: {e}")
+        logger.error(f"!!!!!!!!!! 构建过程链过程中发生错误 {e} !!!!!!!!!!", exc_info=True)
+        return []
+    if not end_to_end_chain:
+        logger.error("重构器链条创建失败")
         return []
 
-    if not retriever_chain:
-        print("链条创建失败")
-        return []
-    reconstruct_case = []
+    # --- 4.数据分组处理 ---
+    grouped_cases = {}
+    grouped_eval_report = {}
+    case_eval_map = {item['case_ID']: item for item in state["single_evaluation_report"]}
+    for item in state["generated_cases"]:
+        key_value = item["function"]
+        if key_value not in grouped_cases:
+            grouped_cases[key_value] = []
+            grouped_eval_report[key_value] = []
+        grouped_cases[key_value].append(item)
+        grouped_eval_report[key_value].append(case_eval_map[item['case_ID']])
+
+    # --- 5.大模型评估 ---
     try:
-        batch_num = int(len(state["generated_cases"]) / CASE_RECONSTRUCTION_BATCH_SIZE)
         # 异步处理
         tasks = []
-        for i in range(batch_num + 1):
-            if i == batch_num:
-                case_batch = str(state["generated_cases"][i * CASE_RECONSTRUCTION_BATCH_SIZE:])
-                eval_batch = str(state["single_evaluation_report"][i * CASE_RECONSTRUCTION_BATCH_SIZE:])
-            else:
-                case_batch = str(state["generated_cases"][i * CASE_RECONSTRUCTION_BATCH_SIZE : (i + 1) * CASE_RECONSTRUCTION_BATCH_SIZE])
-                eval_batch = str(state["single_evaluation_report"][i * CASE_RECONSTRUCTION_BATCH_SIZE : (i + 1) * CASE_RECONSTRUCTION_BATCH_SIZE])
-            input = f"""
-                # 待重构的原始测试用例列表:
-                {case_batch}
-                # 评估信息与修改建议列表
-                {eval_batch}
-            """
-            task = retriever_chain.ainvoke({"input": input})
-            tasks.append(task)
+        reconstruct_case = []
+        for function_name, cases in grouped_cases.items():
+            batch_num = int(len(cases) / CASE_RECONSTRUCTION_BATCH_SIZE)
+            for i in range(batch_num + 1):
+                if i == batch_num:
+                    case_batch = str(cases[i * CASE_RECONSTRUCTION_BATCH_SIZE:])
+                    eval_batch = str(grouped_eval_report[function_name][i * CASE_RECONSTRUCTION_BATCH_SIZE:])
+                else:
+                    case_batch = str(cases[i * CASE_RECONSTRUCTION_BATCH_SIZE: (i + 1) * CASE_RECONSTRUCTION_BATCH_SIZE])
+                    eval_batch = str(grouped_eval_report[function_name][i * CASE_RECONSTRUCTION_BATCH_SIZE: (i + 1) * CASE_RECONSTRUCTION_BATCH_SIZE])
+                input_str = f"""
+                    # 进行重构的功能
+                    {function_name}
+                    # 待重构的原始测试用例列表:
+                    {case_batch}
+                    # 评估信息与修改建议列表
+                    {eval_batch}
+                """
+                task = end_to_end_chain.ainvoke({"input": input_str})
+                tasks.append(task)
         batch_result_list = await asyncio.gather(*tasks)
-        for result_str in batch_result_list:
-            print(result_str)
-            # 转JSON
-            batch_case = parse_json_output(result_str, expected_type=list)
+        for result_dict in batch_result_list:
+            logger.info(f"单例评估单次大模型输出结果：{result_dict}")
             # 加入批次
-            if batch_case is not None:
-                reconstruct_case.extend(batch_case)
-        print(reconstruct_case)
+            if result_dict is not None:
+                reconstruct_case.extend(result_dict)
+        logger.info(f"单例评估最终输出结果：{reconstruct_case}")
         return reconstruct_case
     except Exception as e:
-        print(f"!!!!!!!!!! 在generator_agent_node中发生严重错误 !!!!!!!!!!")
-        print(f"错误类型: {type(e).__name__}")
-        print(f"错误信息: {e}")
+        logger.error(f"!!!!!!!!!! 在generator_agent_node中发生严重错误 {e} !!!!!!!!!!", exc_info=True)
         return []

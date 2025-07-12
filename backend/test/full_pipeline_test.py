@@ -2,8 +2,9 @@ import asyncio
 
 import services.ai_service as ai_service
 import logging
+
 logging.basicConfig(
-    level=logging.INFO, # 设置根logger的级别为DEBUG，能捕获所有级别的日志
+    level=logging.INFO,  # 设置根logger的级别为DEBUG，能捕获所有级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -68,6 +69,7 @@ text = """
 【取消】按钮：点击【取消】按钮取消修改密码，返回至我的页面；
 【提交】按钮：点击【提交】按钮依次校验密码、验证码，若某一项校验出问题则在对应输入框下方红字提醒用户错误原因，全部校验通过则提示重置密码成功；
 """
+
 
 async def main():
     """

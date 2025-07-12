@@ -141,11 +141,10 @@ async def generator_agent_node(state: TestCaseGenerationState, llm: BaseChatMode
             | RunnablePassthrough.assign(
                 context=itemgetter("super_query") | retriever
             )
-            # 此步输出: {"input": ..., "original_input": ..., "super_query": ..., "context": [Docs...]}
-            # 步骤4：将最终需要的信息喂给Prompt模板
+            # ↑ {"input": ..., "original_input": ..., "super_query": ..., "context": [Docs...]}
+            # ↓ Prompt模板填充
             | {
                 "context": itemgetter("context"),
-                # 关键：我们在这里传入的是最开始的`original_input`，而不是`super_query`
                 "input": itemgetter("original_input")
             }
             | case_generation_prompt
