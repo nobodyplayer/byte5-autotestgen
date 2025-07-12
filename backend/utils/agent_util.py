@@ -7,6 +7,7 @@ from config.config import (
     CHUNK_SIZE, CHUNK_OVERLAP,
 )
 from langchain_community.vectorstores import FAISS
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +74,10 @@ def text_split(prd_content: str, embeddings: Embeddings) -> None | FAISS:
         )
         splits = text_splitter.split_text(prd_content)
         if not splits:
-            print("文本分割失败")
+            logger.error("！！！发生错误，文本分割失败！！！")
             return None
         vectorstore = FAISS.from_texts(splits, embedding=embeddings)
     except Exception as e:
-        print(f"!!!!!!!!!! 文本向量化过程中发生错误 !!!!!!!!!!")
-        print(f"错误类型: {type(e).__name__}")
-        print(f"错误信息: {e}")
+        logger.error(f"!!!!!!!!!! 文本向量化过程中发生错误: {e} !!!!!!!!!!", exc_info=True)
         return None
     return vectorstore

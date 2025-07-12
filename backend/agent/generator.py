@@ -119,44 +119,38 @@ async def generator_agent_node(state: TestCaseGenerationState, llm: BaseChatMode
 
     # --- 3.查询生成 + rag链条构建 ---
     try:
+        # 超级查询生成链条
         query_generator_prompt = ChatPromptTemplate.from_template(QUERY_GENERATE_PROMPT)
         query_generator_chain = query_generator_prompt | llm | StrOutputParser()
+        # 检索器
         retriever = vectorstore.as_retriever(search_kwargs={"k": RETRIEVER_SEARCH_K})
         case_generation_prompt = ChatPromptTemplate.from_template(GENERATOR_AGENT_PROMPT)
-        # document_chain = create_stuff_documents_chain(llm, case_generation_prompt)
-        # retriever_chain = create_retrieval_chain(retriever, document_chain) | itemgetter("answer")
-        # end_to_end_chain = (
-        #         {"input": query_generator_chain}
-        #         | retriever_chain
-        # )
-        # 步骤A: 定义RAG的数据准备部分
+        # 整体的端到端链条
         end_to_end_chain = (
-            # 步骤1：接收原始输入，并将其存储在'original_input'键中，同时透传下去
-                RunnablePassthrough.assign(
-                    original_input=itemgetter("input")
-                )
-                # 此步输出: {"input": "测试点列表...", "original_input": "测试点列表..."}0.
-                | RunnablePassthrough.assign(
-            # 步骤2：使用原始输入生成“超级查询”，并将其结果存储在'super_query'键中
-            super_query=itemgetter("original_input") | query_generator_chain
-        )
-                # 此步输出: {"input": ..., "original_input": ..., "super_query": "超级查询..."}
-                | RunnableLambda(debug_super_query)
-                | RunnablePassthrough.assign(
-            # 步骤3：使用“超级查询”进行RAG检索，并将结果存储在'context'键中
-            context=itemgetter("super_query") | retriever
-        )
-                # 此步输出: {"input": ..., "original_input": ..., "super_query": ..., "context": [Docs...]}
-                # 步骤4：将最终需要的信息喂给Prompt模板
-                | {
-                    "context": itemgetter("context"),
-                    # 关键：我们在这里传入的是最开始的`original_input`，而不是`super_query`
-                    "input": itemgetter("original_input")
-                }
-                | RunnableLambda(debug_and_print_prompt_inputs)
-                | case_generation_prompt
-                | llm
-                | StrOutputParser()
+            # ↓ 原始输入input存储在'original_input'键中并透传
+            RunnablePassthrough.assign(
+                original_input=itemgetter("input")
+            )
+            # ↑ e.g. {"input": "测试点列表...", "original_input": "测试点列表..."}
+            # ↓ 使用原始输入生成“超级查询”，并将其结果存储在'super_query'键中
+            | RunnablePassthrough.assign(
+                super_query=itemgetter("original_input") | query_generator_chain
+            )
+            # ↑ e.g. {"input": ..., "original_input": ..., "super_query": "超级查询..."}
+            # ↓ 使用“超级查询”进行RAG检索，并将结果存储在"context"键中
+            | RunnablePassthrough.assign(
+                context=itemgetter("super_query") | retriever
+            )
+            # 此步输出: {"input": ..., "original_input": ..., "super_query": ..., "context": [Docs...]}
+            # 步骤4：将最终需要的信息喂给Prompt模板
+            | {
+                "context": itemgetter("context"),
+                # 关键：我们在这里传入的是最开始的`original_input`，而不是`super_query`
+                "input": itemgetter("original_input")
+            }
+            | case_generation_prompt
+            | llm
+            | StrOutputParser()
         )
     except Exception as e:
         logging.error(f"!!!!!!!!!! 构建过程链过程中发生错误： {e} !!!!!!!!!!", exc_info=True)
@@ -203,42 +197,3 @@ async def generator_agent_node(state: TestCaseGenerationState, llm: BaseChatMode
     except Exception as e:
         logger.error(f"!!!!!!!!!! 在generator_agent_node中发生严重错误 {e} !!!!!!!!!!", exc_info=True)
         return []
-
-
-def debug_and_print_prompt_inputs(data_dict: dict) -> dict:
-    """
-    一个用于调试的函数，它会打印即将用于填充最终生成Prompt的数据。
-    """
-    print("\n" + "=" * 50)
-    print("--- 即将填充生成器Prompt，输入数据如下 ---")
-
-    # 关键修改：这里的键名是 'input'，对应上一步筛选器输出的键名
-    print(f"\n[INPUT (原始测试点列表)]:\n{data_dict.get('input')}")
-    print(f"\n[SUPER_QUERY]:\n{data_dict.get('')}]")
-
-    # 打印上下文
-    context_docs = data_dict.get('context', [])
-    print(f"\n[CONTEXT] (检索到 {len(context_docs)} 个文档):")
-    for i, doc in enumerate(context_docs):
-        print(f"  --- 文档 {i + 1} ---\n  {doc.page_content[:200]}...\n  ---------------")
-
-    print("=" * 50 + "\n")
-
-    # 必须原样返回，让链条可以继续执行
-    return data_dict
-
-
-def debug_super_query(state_dict: dict) -> dict:
-    """
-    这个探针函数专门用于打印'super_query'的值。
-    """
-    print("\n" + "---" * 20)
-    print("--- 观测点：超级查询已生成 ---")
-
-    super_query_text = state_dict.get('super_query', '未找到super_query')
-    print(f"\n[SUPER QUERY]:\n{super_query_text}")
-
-    print("---" * 20 + "\n")
-
-    # 必须原样返回整个状态字典，让链条可以继续执行
-    return state_dict
