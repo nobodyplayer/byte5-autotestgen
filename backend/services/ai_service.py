@@ -9,12 +9,13 @@ from autogen_agentchat.messages import ModelClientStreamingChunkEvent, MultiModa
 from autogen_core import Image as AGImage
 
 from models.test_case import TestCase
-from models.state import TestCaseGenerationState
+import models.state as state
 from utils.llms import model_client
 from utils.llm_initial_util import initialize_llm
 from .feishu_service import FeishuService
 from .prompts import TestCasePrompts, SystemMessages, ErrorMessages
 from agent import generator, evaluator, reconstructor
+from utils import agent_util
 
 
 class AIService:
@@ -28,11 +29,11 @@ class AIService:
         self.llm, self.embeddings = initialize_llm("Volcengine", "doubao-Seed-1.6-thinking", "doubao-embedding")
 
     async def generate_test_cases_from_multimodal_prd_stream(
-        self,
-        prd_text: str,
-        prd_images: List[str],  # 改为接收文件路径列表
-        context: str,
-        requirements: str
+            self,
+            prd_text: str,
+            prd_images: List[str],  # 改为接收文件路径列表
+            context: str,
+            requirements: str
     ) -> AsyncGenerator[str, None]:
         """基于PRD文本和图片组合生成测试用例（支持纯文本模式）"""
         try:
@@ -40,13 +41,13 @@ class AIService:
             if prd_images:  # 只有当有图片时才处理
                 for i, image_path in enumerate(prd_images):
                     try:
-                        print(f"处理第{i+1}张图片: {image_path}")
-                        
+                        print(f"处理第{i + 1}张图片: {image_path}")
+
                         # 检查文件是否存在
                         if not os.path.exists(image_path):
-                            print(f"跳过第{i+1}张图片：文件不存在 {image_path}")
+                            print(f"跳过第{i + 1}张图片：文件不存在 {image_path}")
                             continue
-                        
+
                         # 使用PIL直接打开文件路径，使用上下文管理器确保文件正确关闭
                         with PILImage.open(image_path) as pil_image:
                             # 验证图片尺寸
@@ -55,35 +56,35 @@ class AIService:
                                 pil_image_copy = pil_image.copy()
                                 ag_image = AGImage(pil_image_copy)
                                 ag_images.append(ag_image)
-                                print(f"成功处理第{i+1}张图片")
+                                print(f"成功处理第{i + 1}张图片")
                             else:
-                                print(f"跳过第{i+1}张图片")
-                            
+                                print(f"跳过第{i + 1}张图片")
+
                     except Exception as e:
                         import traceback
-                        print(f"处理第{i+1}张图片时出错: {e}")
+                        print(f"处理第{i + 1}张图片时出错: {e}")
                         print(f"错误堆栈: {traceback.format_exc()}")
                         continue
-            
+
             # 创建组合提示词
             prompt = TestCasePrompts.get_multimodal_prd_prompt(prd_text, context, requirements)
 
             content = [prompt] + ag_images
             multi_modal_message = AGMultiModalMessage(content=content, source="user")
-            
+
             agent = AssistantAgent(
                 name="agent",
                 model_client=model_client,
                 system_message=SystemMessages.MULTIMODAL_ANALYSIS,
                 model_client_stream=True,
             )
-            
+
             # 首先输出标题
             yield "# 正在生成测试用例...\n\n"
-            
+
             # 初始化markdown缓冲区
             markdown_buffer = ""
-            
+
             # 流式输出生成的测试用例
             async for event in agent.run_stream(task=multi_modal_message):
                 if isinstance(event, ModelClientStreamingChunkEvent):
@@ -92,49 +93,45 @@ class AIService:
                     yield content
                 elif isinstance(event, TaskResult):
                     pass
-            
+
             # 在流式输出结束后，尝试从Markdown中提取测试用例
             test_cases_json = self._extract_test_cases_from_markdown(markdown_buffer)
             if test_cases_json:
                 # 只输出隐藏的JSON注释，供后端处理使用，前端会解析但不显示
                 yield "\n\n<!-- TEST_CASES_JSON: " + json.dumps(test_cases_json) + " -->\n"
-                
+
         except Exception as e:
             error_message = ErrorMessages.get_generation_error(str(e))
             yield f"\n\n**错误:** {error_message}\n\n"
-            
 
-            
     async def generate_test_cases_stream_from_feishu(
-        self,
-        feishu_url: str,
-        context: str,
-        requirements: str
+            self,
+            feishu_url: str,
+            context: str,
+            requirements: str
     ) -> AsyncGenerator[str, None]:
         """基于飞书文档URL生成测试用例"""
         if not self.feishu_service:
             raise ValueError("飞书服务未初始化，请提供飞书应用凭证")
-        
+
         try:
             # 获取飞书文档的多模态内容（文本+图片）
             document_text, document_images = await self.feishu_service.get_document_multimodal_content(feishu_url)
             if not document_text.strip():
                 raise ValueError("无法获取文档内容或文档为空")
-            
+
             # 复用多模态PRD处理方法
             async for chunk in self.generate_test_cases_from_multimodal_prd_stream(
-                prd_text=document_text,
-                prd_images=document_images,
-                context=context,
-                requirements=requirements
+                    prd_text=document_text,
+                    prd_images=document_images,
+                    context=context,
+                    requirements=requirements
             ):
                 yield chunk
-                
+
         except Exception as e:
             error_msg = ErrorMessages.get_feishu_error(str(e))
             yield f"\n\n**错误:** {error_msg}\n\n"
-            
-
 
     def _test_case_to_dict(self, test_case: TestCase) -> Dict[str, Any]:
         """
@@ -159,34 +156,34 @@ class AIService:
         从测试用例列表生成Markdown格式的输出
         """
         markdown_lines = []
-        
+
         for test_case in test_cases:
             # 测试用例标题
             markdown_lines.append(f"## {test_case.id}: {test_case.title}")
             markdown_lines.append("")
-            
+
             # 基本信息
             markdown_lines.append(f"**优先级:** {test_case.priority}")
             markdown_lines.append(f"**描述:** {test_case.description}")
-            
+
             if test_case.preconditions:
                 markdown_lines.append(f"**前置条件:** {test_case.preconditions}")
-            
+
             markdown_lines.append("")
-            
+
             # 测试步骤表格
             markdown_lines.append("### 测试步骤")
             markdown_lines.append("")
             markdown_lines.append("| # | 步骤描述 | 预期结果 |")
             markdown_lines.append("| --- | --- | --- |")
-            
+
             for step in test_case.steps:
                 markdown_lines.append(f"| {step.step_number} | {step.description} | {step.expected_result} |")
-            
+
             markdown_lines.append("")
             markdown_lines.append("---")
             markdown_lines.append("")
-        
+
         return "\n".join(markdown_lines)
 
     def _extract_test_cases_from_markdown(self, markdown_text: str) -> List[Dict[str, Any]]:
@@ -281,14 +278,13 @@ class AIService:
     async def generate_test_cases_full_pipeline(self, prd_text):
 
         try:
-            # 初始化大模型、嵌入模型、状态对象
-
-            sta = TestCaseGenerationState(prd_content=prd_text, detected_testPoint=[], generated_cases=[],
-                                                total_evaluation_report={}, single_evaluation_report=[], vectorstore=None)
+            # --- 1.状态对象初始化 ---
+            sta = state.create_default_state()
+            sta["prd_content"] = prd_text
             yield "### 阶段一：需求文档分析与测试点提取\n"
             yield f"分析中... (最多进行5轮迭代，目标评估分数 > 4.5)\n\n"
 
-            # --- 1.文档分析迭代 ---
+            # --- 2.文档分析迭代 ---
             eval_count = 0
             retry_count = 0
             max_score = 0.0
@@ -307,7 +303,7 @@ class AIService:
                     if retry_count > 5:
                         exit(0)
                     continue
-                sta["detected_testPoint"] = detected
+                sta["detected_test_point_dict"] = detected
                 # 评估报告，如果出现异常则结束本轮迭代
                 evaluation_report = evaluator.total_evaluator_agent_node(sta, self.llm)
                 if not evaluation_report or evaluation_report == []:
@@ -318,22 +314,30 @@ class AIService:
                 current_score = float(evaluation_report.get("score", 0))
                 yield f"- 第 {eval_count + 1} 轮分析完成，评估得分: **{current_score:.2f}**\n"
                 if float(evaluation_report["score"]) > max_score:
-                    best_record = sta["detected_testPoint"]
-                    max_score = evaluation_report["score"]
+                    best_record = sta["detected_test_point_dict"]
+                    max_score = float(evaluation_report["score"])
                 eval_count += 1
                 if current_score >= 4.5:
                     yield f"分析质量已达标！最终选用得分最高的测试点集。\n\n"
                     break
             # 取得分最高的测试点
-            sta["detected_testPoint"] = best_record
+            sta["detected_test_point_dict"] = best_record
 
+            # TODO: 人工审核环节
 
-            # --- 2.初始测试用例生成 ---
+            # --- 3.测试点编号 ---
+            sta["detected_test_point_list"] = agent_util.test_case_number(sta["detected_test_point_dict"])
+
+            # --- 4.初始测试用例生成 ---
             yield "### 阶段二：初始测试用例生成\n"
             yield "生成中...\n\n"
+            retry_count = 0
             while True:
-                test_cases = generator.generator_agent_node(sta, self.llm, self.embeddings)
+                test_cases = await generator.generator_agent_node(sta, self.llm, self.embeddings)
                 if not test_cases or test_cases == []:
+                    retry_count += 1
+                    if retry_count > 5:
+                        yield "**错误**：初始测试用例生成已达最大上限，即将退出"
                     yield "**警告**: 初始测试用例生成失败，即将再次重试。\n"
                 else:
                     sta["generated_cases"] = test_cases
@@ -355,7 +359,7 @@ class AIService:
                     break
                 yield f"本轮需要优化 **{len(sta["generated_cases"])}** 条用例...\n"
                 # 生成报告
-                single_eval_report = evaluator.single_evaluator_agent_node(sta, self.llm, self.embeddings)
+                single_eval_report = await evaluator.single_evaluator_agent_node(sta, self.llm, self.embeddings)
                 if not single_eval_report or single_eval_report == []:
                     print("单例评估器：执行测试用例评估时大模型输出异常", "WARNING")
                 sta["single_evaluation_report"] = single_eval_report
@@ -406,7 +410,7 @@ class AIService:
                 history_case = {item['case_ID']: item for item in sta["generated_cases"]}
                 history_evaluation_report = {item['case_ID']: item for item in sta["single_evaluation_report"]}
                 # 开始重构测试用例
-                sta["generated_cases"] = reconstructor.reconstructor_agent_node(sta, self.llm, self.embeddings)
+                sta["generated_cases"] = await reconstructor.reconstructor_agent_node(sta, self.llm, self.embeddings)
                 reconstruct_count += 1
             yield f"--- 所有迭代重构完成 ---\n\n"
             yield "### 阶段四：生成最终结果\n"

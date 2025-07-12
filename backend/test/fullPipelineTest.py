@@ -1,9 +1,7 @@
-import models.state as state
-import utils.llm_initial_util as llm_initial
-import agent.generator as generator
-import agent.evaluator as evaluator
-import logging
+import asyncio
 
+import services.ai_service as ai_service
+import logging
 logging.basicConfig(
     level=logging.INFO, # 设置根logger的级别为DEBUG，能捕获所有级别的日志
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -70,12 +68,26 @@ text = """
 【取消】按钮：点击【取消】按钮取消修改密码，返回至我的页面；
 【提交】按钮：点击【提交】按钮依次校验密码、验证码，若某一项校验出问题则在对应输入框下方红字提醒用户错误原因，全部校验通过则提示重置密码成功；
 """
-if __name__ == '__main__':
-    sta = state.create_default_state()
-    sta["prd_content"] = text
-    llm, embeddings = llm_initial.initialize_llm("Volcengine", "doubao-Seed-1.6-thinking", "doubao-embedding")
-    while not sta["total_evaluation_report"] or float(sta["total_evaluation_report"].get("score")) < 4.5:
-        detected = generator.analyser_agent_node(sta, llm)
-        sta["detected_test_point_dict"] = detected
-        evaluation_report = evaluator.total_evaluator_agent_node(sta, llm)
-        sta["total_evaluation_report"] = evaluation_report
+
+async def main():
+    """
+    主函数，负责实例化服务并直接调用其方法。
+    """
+    service = ai_service.AIService()
+    try:
+
+        stream_generator = service.generate_test_cases_full_pipeline(prd_text=text)
+        async for chunk in stream_generator:
+            # 实时打印每个数据块
+            main_logger.info(chunk)
+
+    except Exception as e:
+        main_logger.info(f"\n❌ 调用方法时发生错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return
+
+
+if __name__ == "__main__":
+    # 使用 asyncio.run 来执行异步的主函数
+    asyncio.run(main())

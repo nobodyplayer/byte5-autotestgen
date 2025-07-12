@@ -3,7 +3,7 @@ from langchain.chains.retrieval import create_retrieval_chain
 from langchain_community.vectorstores import FAISS
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from operator import itemgetter
@@ -15,6 +15,9 @@ from config.config import (
 
 from models.state import TestCaseGenerationState
 from utils.json_parse_util import parse_json_output
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def single_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel, embeddings: Embeddings):
@@ -48,7 +51,7 @@ async def single_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseC
         print("没有生成的测试用例")
 
     # 文本向量化
-    if state.get("vectorstore") is None:
+    if state.get("prd_vector") is None:
         try:
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
@@ -63,9 +66,9 @@ async def single_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseC
             print(f"错误类型: {type(e).__name__}")
             print(f"错误信息: {e}")
             return []
-        state["vectorstore"] = vectorstore  # 存入状态
+        state["prd_vector"] = vectorstore  # 存入状态
     else:
-        vectorstore = state["vectorstore"]
+        vectorstore = state["prd_vector"]
 
     # RAG链条构建
     try:
@@ -113,7 +116,7 @@ async def single_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseC
         return []
 
 
-def total_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel):
+def total_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel) -> dict:
     """
     总体评估器节点（宏观评估）。
 
@@ -135,37 +138,26 @@ def total_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatMode
                     如果JSON解析失败，但启发式解析成功，则可能返回一个字符串列表。
                     如果发生严重错误，则返回空列表。
     """
-    print("--- Node: 全体评估器")
-    # 检查参数
+    logger.info("--- Node: 全体评估器")
+    # --- 1.检查参数 ---
     if not llm:
-        print("没有可用的大语言模型")
+        logger.error("没有可用的大语言模型")
+        return {}
     if not state or state["prd_content"] is None:
-        print("需求文档为空")
-    if not state or state["detected_testPoint"] == []:
-        print("解析的测试点列表为空")
+        logger.error("需求文档为空")
+        return {}
+    if not state or state["detected_test_point_dict"] == {}:
+        logger.error("解析的测试点列表为空")
+        return {}
+
     try:
-        # 构建整体链条
+        # --- 2.构建整体链条 ---
         app_prompt = ChatPromptTemplate.from_template(TOTAL_EVALUATOR_AGENT_PROMPT)
-        app_chain = app_prompt | llm | StrOutputParser()
-
-        result_str = app_chain.invoke({"document": state["prd_content"], "testPoint": state["detected_testPoint"]})
-        print(result_str)
-
-        # 转JSON
-        evalResult = parse_json_output(result_str, expected_type=dict)
-
-        # 文档解析失败
-        if evalResult is None:
-            # 启发式解析，判断是否返回了一个逗号分割的简单字符串
-            if result_str and not result_str.startswith("I cannot") and len(
-                    result_str) < 200 and '[' not in result_str and '{' not in result_str:
-                possible_apps = [app.strip().strip("'\"") for app in result_str.split(',') if app.strip()]
-                if possible_apps:
-                    return sorted(list(set(possible_apps)))
-            return []
-        return evalResult
+        app_chain = app_prompt | llm | JsonOutputParser()
+        # --- 3.执行评估 ---
+        result_dict = app_chain.invoke({"document": state["prd_content"], "testPoint": state["detected_test_point_dict"]})
+        logger.info(f"全体评估器输出的JSON对象：{result_dict}")
+        return result_dict
     except Exception as e:
-        print(f"!!!!!!!!!! 在total_evaluator_node中发生严重错误 !!!!!!!!!!")
-        print(f"错误类型: {type(e).__name__}")
-        print(f"错误信息: {e}")
-        return []
+        logger.error(f"!!!!!!!!!! 在total_evaluator_node中发生严重错误:{e}!!!!!!!!!!", exc_info=True)
+        return {}
