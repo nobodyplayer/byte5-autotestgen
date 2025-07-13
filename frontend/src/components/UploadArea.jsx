@@ -448,12 +448,12 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
               {isGenerating ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <CircularProgress size={20} color="inherit" />
-                  <Typography variant="inherit">AI正在生成测试用例...</Typography>
+                  <Typography variant="inherit">AI正在生成功能测试点...</Typography>
                 </Box>
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <UploadFileIcon />
-                  <Typography variant="inherit">开始生成测试用例</Typography>
+                  <Typography variant="inherit">开始生成功能测试点</Typography>
                 </Box>
               )}
             </Button>

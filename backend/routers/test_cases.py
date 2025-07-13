@@ -29,45 +29,60 @@ async def generate_test_cases(
     requirements: str = Form(...)
 ):
     """
+    结构化功能测试点生成：
+    1. 数据预处理（文本切块、图片分类）
+    2. 功能模块分解
+    3. 按模块生成测试点
+    
     支持两种输入模式：
     1. PRD输入（文本+多图片）：prd_text + images
     2. 飞书文档输入：feishu_url
     """
     ai_service = request.app.state.ai_service
     image_paths = []
+    
     if feishu_url:
         # 飞书文档模式
         return StreamingResponse(
-            ai_service.generate_test_cases_stream_from_feishu(
+            ai_service.generate_test_points_stream(
                 feishu_url=feishu_url,
                 context=context,
                 requirements=requirements
             ),
-            media_type="text/markdown"
-        )
-    elif prd_text or images:
-        # PRD模式，允许文本、图片任意组合
-        if not prd_text and not images:
-            raise HTTPException(status_code=400, detail="请提供PRD文本或图片")
-        for image in images:
-            if image.filename:
-                image_id = str(uuid.uuid4())
-                image_extension = os.path.splitext(image.filename)[1]
-                image_path = f"uploads/{image_id}{image_extension}"
-                with open(image_path, "wb") as image_file:
-                    image_file.write(await image.read())
-                image_paths.append(image_path)
-        return StreamingResponse(
-            ai_service.generate_test_cases_from_multimodal_prd_stream(
-                prd_text=prd_text or "",
-                prd_images=image_paths,
-                context=context,
-                requirements=requirements
-            ),
-            media_type="text/markdown"
+            media_type="text/plain; charset=utf-8"
         )
     else:
-        raise HTTPException(status_code=400, detail="请提供有效的输入")
+        # PRD输入模式
+        try:
+            # 保存上传的图片
+            for image in images:
+                if image.filename:
+                    file_extension = os.path.splitext(image.filename)[1]
+                    unique_filename = f"{uuid.uuid4()}{file_extension}"
+                    file_path = os.path.join("uploads", unique_filename)
+                    
+                    with open(file_path, "wb") as buffer:
+                        content = await image.read()
+                        buffer.write(content)
+                    
+                    image_paths.append(file_path)
+            
+            return StreamingResponse(
+                ai_service.generate_test_points_stream(
+                    prd_text=prd_text,
+                    prd_images=image_paths,
+                    context=context,
+                    requirements=requirements
+                ),
+                media_type="text/plain; charset=utf-8"
+            )
+        
+        except Exception as e:
+            # 清理已上传的文件
+            for path in image_paths:
+                if os.path.exists(path):
+                    os.remove(path)
+            raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
 
 @router.post("/export")
 async def export_test_cases(test_cases: List[Union[TestCase, Dict[str, Any]]]):

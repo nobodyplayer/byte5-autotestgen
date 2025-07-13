@@ -19,8 +19,8 @@ const StreamingOutput = ({ content }) => {
   const getDisplayContent = (rawContent) => {
     if (!rawContent) return '';
     
-    // 移除TEST_CASES_JSON注释
-    const filteredContent = rawContent.replace(/<!-- TEST_CASES_JSON: .+? -->/g, '');
+    // 移除 TEST_CASES_JSON 和 TEST_POINTS_JSON 注释
+    const filteredContent = rawContent.replace(/<!-- TEST_CASES_JSON: .+? -->/g, '').replace(/<!-- TEST_POINTS_JSON: .+? -->/g, '');
     
     return filteredContent;
   };
