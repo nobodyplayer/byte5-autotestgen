@@ -210,7 +210,6 @@ async def test_case_review(
         request: Request,
         review_list: List[str] = Form(None),
         review_function: str = Form(None),
-        review_text: str = Form(None)
 ):
     # 获取服务与session
     ai_service = request.app.state.ai_service
@@ -224,3 +223,41 @@ async def test_case_review(
         ),
         media_type="text/markdown"
     )
+
+
+@router.get("/get_test_points", response_model=Dict[str, Any])
+async def get_test_points(request: Request):
+    """
+    从当前用户的会话中，获取已经提取好的功能测试点数据。
+
+    这个接口是作为流式分析接口（如/detect_test_point）的补充，
+    用于在流式日志输出完毕后，由前端主动调用以获取结构化的最终结果。
+
+    Args:
+        request (Request): FastAPI的请求对象，用于访问会话(session)。
+
+    Returns:
+        Dict[str, Any]: 一个字典，其中键是功能模块名称，值是该模块下的测试点列表。
+                        如果session中没有找到数据，则返回404错误。
+
+    Raises:
+        HTTPException: 如果在会话中找不到有效的测试点数据，则抛出404 Not Found异常。
+    """
+    # 1. 通过注入的request对象，安全地获取session
+    session = request.session
+
+    # 2. 安全地从session中获取state对象
+    # 使用 .get() 避免在 session 或 state 不存在时抛出 KeyError
+    state = session.get("state")
+    if not state:
+        raise HTTPException(status_code=404, detail="Session中未找到状态信息，请先执行分析步骤。")
+
+    # 3. 安全地从state对象中获取测试点字典
+    test_points_dict = state.get("detected_test_point_dict")
+    if not test_points_dict:
+        raise HTTPException(status_code=404, detail="状态中未找到已提取的测试点，请确认分析步骤是否成功完成。")
+
+    # 4. 如果成功找到，直接返回该字典
+    # FastAPI会自动将其序列化为JSON响应
+    print(f"成功从Session中为用户检索到测试点数据: {test_points_dict}")
+    return test_points_dict
