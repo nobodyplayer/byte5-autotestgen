@@ -90,23 +90,23 @@ class AIService:
         
         # 后台处理JSON解析（不输出到前端）
         print(markdown_buffer)
-        if markdown_buffer:
-            json_match = re.search(r'```json\s*({.*?})\s*```', markdown_buffer, re.DOTALL)
-            if json_match:
-                json_content = json_match.group(1)
-                # 将JSON内容保存到类属性中，供前端API调用获取
-                self.last_test_points_json = json_content.strip()
-            else:
-                # 如果没有找到JSON代码块，尝试查找纯JSON对象
-                json_match = re.search(r'({\s*"[^"]+"\s*:\s*\[[^\]]*\].*?})', markdown_buffer, re.DOTALL)
-                if json_match:
-                    json_content = json_match.group(1)
-                    self.last_test_points_json = json_content.strip()
-                else:
-                    # 如果都没找到，输出原始内容但加上警告
-                    print(f"警告：未能从AI输出中提取到有效的JSON格式: {markdown_buffer[:200]}...")
-                    self.last_test_points_json = '{"解析错误": ["AI输出格式不正确，请查看流式内容"]}'
-    
+        # if markdown_buffer:
+        #     json_match = re.search(r'```json\s*({.*?})\s*```', markdown_buffer, re.DOTALL)
+        #     if json_match:
+        #         json_content = json_match.group(1)
+        #         # 将JSON内容保存到类属性中，供前端API调用获取
+        #         self.last_test_points_json = json_content.strip()
+        #     else:
+        #         # 如果没有找到JSON代码块，尝试查找纯JSON对象
+        #         json_match = re.search(r'({\s*"[^"]+"\s*:\s*\[[^\]]*\].*?})', markdown_buffer, re.DOTALL)
+        #         if json_match:
+        #             json_content = json_match.group(1)
+        #             self.last_test_points_json = json_content.strip()
+        #         else:
+        #             # 如果都没找到，输出原始内容但加上警告
+        #             print(f"警告：未能从AI输出中提取到有效的JSON格式: {markdown_buffer[:200]}...")
+        #             self.last_test_points_json = '{"解析错误": ["AI输出格式不正确，请查看流式内容"]}'
+        
     def generate_mindmap_from_test_cases(self, test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         从测试用例生成思维导图数据
