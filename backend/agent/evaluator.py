@@ -136,7 +136,7 @@ async def single_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseC
         return []
 
 
-def total_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel) -> dict:
+async def total_evaluator_agent_node(state: TestCaseGenerationState, llm: BaseChatModel) -> dict:
     """
     总体评估器节点（宏观评估）。
 

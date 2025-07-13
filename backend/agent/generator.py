@@ -1,29 +1,26 @@
+import asyncio
+import logging
+from operator import itemgetter
+
+import langchain
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough
 
 import utils.agent_util as agent_util
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.retrieval import create_retrieval_chain
-from operator import itemgetter
-import asyncio
-import logging
-import langchain
-
 from config.config import (
-    DETECTOR_AGENT_PROMPT, CHUNK_SIZE, CHUNK_OVERLAP, RETRIEVER_SEARCH_K, GENERATOR_AGENT_PROMPT,
+    DETECTOR_AGENT_PROMPT, RETRIEVER_SEARCH_K, GENERATOR_AGENT_PROMPT,
     CASE_GENERATION_BATCH_SIZE, QUERY_GENERATE_PROMPT
 )
-from utils.json_parse_util import parse_json_output
-
 from models.state import TestCaseGenerationState
+from utils.json_parse_util import parse_json_output
 
 logger = logging.getLogger(__name__)
 
 
-def analyser_agent_node(state: TestCaseGenerationState, llm: BaseChatModel) -> dict:
+async def analyser_agent_node(state: TestCaseGenerationState, llm: BaseChatModel) -> dict:
     """
     分析器/检测器节点（最终版：带唯一ID生成）。
 

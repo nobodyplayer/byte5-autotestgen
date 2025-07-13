@@ -301,7 +301,7 @@ class AIService:
                     yield f"分析迭代达到上限。最终选用得分最高的测试点集。\n\n"
                     break
                 # 分析出的测试点，如果出现异常则结束本轮迭代
-                detected = generator.analyser_agent_node(sta, self.llm)
+                detected = await generator.analyser_agent_node(sta, self.llm)
                 if not detected or detected == []:
                     yield f"**警告**: 在第 {eval_count + 1} 轮分析中，大模型未能提取出有效的测试点，终止分析。\n"
                     retry_count += 1
@@ -310,7 +310,7 @@ class AIService:
                     continue
                 sta["detected_test_point_dict"] = detected
                 # 评估报告，如果出现异常则结束本轮迭代
-                evaluation_report = evaluator.total_evaluator_agent_node(sta, self.llm)
+                evaluation_report = await evaluator.total_evaluator_agent_node(sta, self.llm)
                 if not evaluation_report or evaluation_report == []:
                     yield f"**警告**: 在第 {eval_count + 1} 轮评估中，大模型未能返回有效的评估分数，终止分析。\n"
                     continue
@@ -454,7 +454,7 @@ class AIService:
             priority_list = await priority_setter.priority_setter_agent_node(sta, self.llm, self.embeddings)
             priority_map = {item['case_ID']: item for item in priority_list}
             for item in final_generated_cases:
-                item["priority"] = priority_map[item["case_ID"]]
+                item["priority"] = priority_map.get(item["case_ID"])
             sta["priority_generated_cases"] = final_generated_cases
             session["state"] = sta
             # --- 6. 最终输出 ---
@@ -495,7 +495,7 @@ class AIService:
                     }
                     new_eval = {
                         "case_ID": item["case_ID"],
-                        "justification": review_map["case_ID"]
+                        "justification": review_map.get(item["case_ID"]).get("justification")
                     }
                     sta["generated_cases"].append(new_item)
                     sta["single_evaluation_report"].append(new_eval)
