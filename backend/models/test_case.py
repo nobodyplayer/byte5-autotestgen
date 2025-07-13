@@ -59,3 +59,28 @@ class TestCaseRequest(BaseModel):
 class TestCaseResponse(BaseModel):
     test_cases: List[TestCase]
     excel_url: Optional[str] = None
+
+class MindMapRequest(BaseModel):
+    test_cases: List[dict]
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "test_cases": [
+                    {
+                        "id": "TC-001",
+                        "title": "用户登录功能测试",
+                        "description": "测试用户登录流程",
+                        "priority": "High",
+                        "preconditions": "用户账户已存在",
+                        "steps": [
+                            {
+                                "step_number": 1,
+                                "description": "打开登录页面",
+                                "expected_result": "显示登录页面"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }

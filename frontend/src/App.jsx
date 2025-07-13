@@ -309,19 +309,53 @@ function App() {
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
         setStreamingOutput(buffer);
+      }
 
-        // 尝试解析功能测试点JSON
-        const testPointsJsonRegex = /<!-- TEST_POINTS_JSON: (.+?) -->/;
-        const testPointsMatch = buffer.match(testPointsJsonRegex);
-        
-        if (testPointsMatch && testPointsMatch[1]) {
-          try {
-            const testPointsJson = JSON.parse(testPointsMatch[1]);
-            console.log('解析的功能测试点数据:', testPointsJson);
-            setTestPoints(testPointsJson);
-          } catch (parseError) {
-            console.error('解析功能测试点JSON失败:', parseError);
+      // 流式输出结束后，从markdown内容中解析JSON
+      console.log('流式输出完成，开始解析功能测试点...');
+      console.log('完整的响应内容:', buffer);
+      
+      // 尝试从JSON代码块中提取数据
+      const jsonBlockRegex = /```json\s*({[\s\S]*?})\s*```/;
+      const jsonBlockMatch = buffer.match(jsonBlockRegex);
+      
+      if (jsonBlockMatch && jsonBlockMatch[1]) {
+        try {
+          const testPointsJson = JSON.parse(jsonBlockMatch[1]);
+          console.log('从JSON代码块解析的功能测试点数据:', testPointsJson);
+          setTestPoints(testPointsJson);
+        } catch (parseError) {
+          console.error('解析JSON代码块失败:', parseError);
+          // 如果JSON代码块解析失败，尝试查找纯JSON对象
+          const pureJsonRegex = /({\s*"[^"]+"\s*:\s*\[[^\]]*\][\s\S]*?})/;
+          const pureJsonMatch = buffer.match(pureJsonRegex);
+          
+          if (pureJsonMatch && pureJsonMatch[1]) {
+            try {
+              const testPointsJson = JSON.parse(pureJsonMatch[1]);
+              console.log('从纯JSON解析的功能测试点数据:', testPointsJson);
+              setTestPoints(testPointsJson);
+            } catch (pureJsonError) {
+              console.error('解析纯JSON也失败:', pureJsonError);
+            }
           }
+        }
+      } else {
+        console.warn('未找到JSON代码块，尝试查找纯JSON对象');
+        // 如果没有找到JSON代码块，尝试查找纯JSON对象
+        const pureJsonRegex = /({\s*"[^"]+"\s*:\s*\[[^\]]*\][\s\S]*?})/;
+        const pureJsonMatch = buffer.match(pureJsonRegex);
+        
+        if (pureJsonMatch && pureJsonMatch[1]) {
+          try {
+            const testPointsJson = JSON.parse(pureJsonMatch[1]);
+            console.log('从纯JSON解析的功能测试点数据:', testPointsJson);
+            setTestPoints(testPointsJson);
+          } catch (pureJsonError) {
+            console.error('解析纯JSON失败:', pureJsonError);
+          }
+        } else {
+          console.warn('未找到任何可解析的JSON数据');
         }
       }
     } catch (error) {
@@ -638,12 +672,13 @@ function App() {
                 </Box>
 
                 <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  {isGenerating ? (
-                    <StreamingOutput content={streamingOutput} />
-                  ) : testPoints.test_points && testPoints.test_points.length > 0 ? (
+                  {/* 优先显示测试点结果，如果没有则显示流式输出，最后显示测试用例或空状态 */}
+                  {testPoints && Object.keys(testPoints).length > 0 ? (
                     <TestPointsDisplay
                       testPoints={testPoints}
                     />
+                  ) : (isGenerating || streamingOutput) ? (
+                    <StreamingOutput content={streamingOutput} />
                   ) : testCases.length > 0 ? (
                     <TestCaseDisplay
                       testCases={testCases}

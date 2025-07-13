@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 import asyncio
 
-from models.test_case import TestCase, TestCaseRequest, TestCaseResponse
+from models.test_case import TestCase, TestCaseRequest, TestCaseResponse, MindMapRequest
 from services.excel_service import excel_service
 
 router = APIRouter(
@@ -28,19 +28,8 @@ async def generate_test_cases(
     context: str = Form(...),
     requirements: str = Form(...)
 ):
-    """
-    结构化功能测试点生成：
-    1. 数据预处理（文本切块、图片分类）
-    2. 功能模块分解
-    3. 按模块生成测试点
-    
-    支持两种输入模式：
-    1. PRD输入（文本+多图片）：prd_text + images
-    2. 飞书文档输入：feishu_url
-    """
     ai_service = request.app.state.ai_service
     image_paths = []
-    
     if feishu_url:
         # 飞书文档模式
         return StreamingResponse(
@@ -52,21 +41,16 @@ async def generate_test_cases(
             media_type="text/plain; charset=utf-8"
         )
     else:
-        # PRD输入模式
         try:
-            # 保存上传的图片
             for image in images:
                 if image.filename:
                     file_extension = os.path.splitext(image.filename)[1]
                     unique_filename = f"{uuid.uuid4()}{file_extension}"
                     file_path = os.path.join("uploads", unique_filename)
-                    
                     with open(file_path, "wb") as buffer:
                         content = await image.read()
                         buffer.write(content)
-                    
                     image_paths.append(file_path)
-            
             return StreamingResponse(
                 ai_service.generate_test_points_stream(
                     prd_text=prd_text,
@@ -76,9 +60,7 @@ async def generate_test_cases(
                 ),
                 media_type="text/plain; charset=utf-8"
             )
-        
         except Exception as e:
-            # 清理已上传的文件
             for path in image_paths:
                 if os.path.exists(path):
                     os.remove(path)
@@ -98,6 +80,27 @@ async def export_test_cases(test_cases: List[Union[TestCase, Dict[str, Any]]]):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error exporting test cases: {str(e)}")
+
+@router.post("/generate-mindmap")
+async def generate_mindmap_from_test_cases(
+    request: Request,
+    mindmap_request: MindMapRequest
+):
+    """
+    从测试用例生成思维导图数据
+    
+    参数:
+        mindmap_request: 包含测试用例列表的请求体
+    
+    返回:
+        思维导图的JSON数据
+    """
+    try:
+        ai_service = request.app.state.ai_service
+        mindmap_data = ai_service.generate_mindmap_from_test_cases(mindmap_request.test_cases)
+        return {"mindmap": mindmap_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成思维导图失败: {str(e)}")
 
 @router.get("/download/{filename}")
 async def download_excel(filename: str):

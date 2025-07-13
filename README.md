@@ -56,6 +56,7 @@
 3. 激活虚拟环境:
    - Windows系统:
      ```
+   cd backend
      venv\Scripts\activate
      ```
    - macOS/Linux系统:

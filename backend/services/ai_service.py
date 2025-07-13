@@ -1,8 +1,7 @@
 import json
 import os
-import re
 from typing import List, Dict, Any, AsyncGenerator
-
+import re
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import UserMessage, ModelClientStreamingChunkEvent
 from autogen_core import CancellationToken
@@ -24,6 +23,9 @@ class AIService:
         # 初始化文本和图片处理器
         self.text_processor = TextProcessor()
         self.image_processor = ImageProcessor()
+        
+        # 存储最后生成的测试点JSON数据
+        self.last_test_points_json = None
 
     
     async def generate_test_points_stream(
@@ -34,10 +36,8 @@ class AIService:
         context: str = "",
         requirements: str = ""
     ) -> AsyncGenerator[str, None]:
-        """生成功能测试点：预处理 → 功能模块分解 → 按模块生成测试点"""
-        
         if feishu_url:
-            print("### 获取飞书文档内容...\n")
+            print("获取飞书文档内容...\n")
             if not self.feishu_service:
                 raise ValueError("飞书服务未初始化，请提供飞书应用凭证")
             document_text, document_images = await self.feishu_service.get_document_multimodal_content(feishu_url)
@@ -45,7 +45,7 @@ class AIService:
             prd_images = document_images or []
             print(f"获取到文档内容，图片数量: {len(prd_images)}\n")
         # 第一步：数据预处理
-        print("## 第一步：数据预处理\n")
+        print("第一步：数据预处理\n")
         # 1.1 文本处理（仅向量化）
         if prd_text:
             print("开始处理文本...\n")
@@ -84,6 +84,135 @@ class AIService:
             if isinstance(event, ModelClientStreamingChunkEvent):
                 markdown_buffer += event.content
                 yield event.content  # 实时将所有内容输出到前端
-        # 结束后输出隐藏 JSON 注释，供前端结构化解析
-        print("检查markdown_buffer是否为空：", markdown_buffer)
-
+        
+        # 流式输出结束提示
+        yield "\n\n**输出结束**"
+        
+        # 后台处理JSON解析（不输出到前端）
+        print(markdown_buffer)
+        if markdown_buffer:
+            json_match = re.search(r'```json\s*({.*?})\s*```', markdown_buffer, re.DOTALL)
+            if json_match:
+                json_content = json_match.group(1)
+                # 将JSON内容保存到类属性中，供前端API调用获取
+                self.last_test_points_json = json_content.strip()
+            else:
+                # 如果没有找到JSON代码块，尝试查找纯JSON对象
+                json_match = re.search(r'({\s*"[^"]+"\s*:\s*\[[^\]]*\].*?})', markdown_buffer, re.DOTALL)
+                if json_match:
+                    json_content = json_match.group(1)
+                    self.last_test_points_json = json_content.strip()
+                else:
+                    # 如果都没找到，输出原始内容但加上警告
+                    print(f"警告：未能从AI输出中提取到有效的JSON格式: {markdown_buffer[:200]}...")
+                    self.last_test_points_json = '{"解析错误": ["AI输出格式不正确，请查看流式内容"]}'
+    
+    def generate_mindmap_from_test_cases(self, test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        从测试用例生成思维导图数据
+        
+        参数:
+            test_cases: 测试用例列表
+        
+        返回:
+            思维导图的JSON数据结构
+        """
+        if not test_cases:
+            return {"name": "测试用例", "children": []}
+        
+        # 创建根节点
+        mindmap = {
+            "name": "测试用例总览",
+            "children": []
+        }
+        
+        # 按优先级分组
+        priority_groups = {}
+        for tc in test_cases:
+            priority = tc.get('priority', 'Medium')
+            if priority not in priority_groups:
+                priority_groups[priority] = []
+            priority_groups[priority].append(tc)
+        
+        # 为每个优先级创建分支
+        for priority, cases in priority_groups.items():
+            priority_node = {
+                "name": f"{priority} 优先级 ({len(cases)}个)",
+                "children": []
+            }
+            
+            for tc in cases:
+                test_case_node = {
+                    "name": tc.get('title', tc.get('id', '未知测试用例')),
+                    "children": []
+                }
+                
+                # 添加描述节点
+                if tc.get('description'):
+                    test_case_node["children"].append({
+                        "name": f"描述: {tc['description'][:50]}{'...' if len(tc['description']) > 50 else ''}",
+                        "children": []
+                    })
+                
+                # 添加前置条件节点
+                if tc.get('preconditions'):
+                    test_case_node["children"].append({
+                        "name": f"前置条件: {tc['preconditions'][:50]}{'...' if len(tc['preconditions']) > 50 else ''}",
+                        "children": []
+                    })
+                
+                # 添加测试步骤节点
+                if tc.get('steps'):
+                    steps_node = {
+                        "name": f"测试步骤 ({len(tc['steps'])}步)",
+                        "children": []
+                    }
+                    
+                    for step in tc['steps'][:5]:  # 限制显示的步骤数量
+                        step_node = {
+                            "name": f"步骤{step.get('step_number', '?')}: {step.get('description', '')[:30]}{'...' if len(step.get('description', '')) > 30 else ''}",
+                            "children": [{
+                                "name": f"预期: {step.get('expected_result', '')[:40]}{'...' if len(step.get('expected_result', '')) > 40 else ''}",
+                                "children": []
+                            }]
+                        }
+                        steps_node["children"].append(step_node)
+                    
+                    test_case_node["children"].append(steps_node)
+                
+                priority_node["children"].append(test_case_node)
+            
+            mindmap["children"].append(priority_node)
+        
+        # 添加统计信息节点
+        stats_node = {
+            "name": "统计信息",
+            "children": [
+                {"name": f"总测试用例: {len(test_cases)}", "children": []},
+                {"name": f"优先级分布: {len(priority_groups)}种", "children": []},
+                {"name": f"平均步骤数: {self._calculate_average_steps(test_cases):.1f}", "children": []}
+            ]
+        }
+        mindmap["children"].append(stats_node)
+        
+        return mindmap
+    
+    def _calculate_average_steps(self, test_cases: List[Dict[str, Any]]) -> float:
+        """
+        计算测试用例的平均步骤数
+        """
+        if not test_cases:
+            return 0.0
+        
+        total_steps = 0
+        valid_cases = 0
+        
+        for tc in test_cases:
+            steps = tc.get('steps', [])
+            if steps:
+                total_steps += len(steps)
+                valid_cases += 1
+        
+        return total_steps / valid_cases if valid_cases > 0 else 0.0
+          
+       
