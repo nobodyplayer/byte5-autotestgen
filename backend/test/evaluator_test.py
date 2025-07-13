@@ -771,9 +771,9 @@ async def main():
     sta["prd_content"] = text
     sta["detected_test_point_dict"] = detector_result
     sta["generated_cases"] = generator_result
-    llm, embeddings = initialize_llm("Volcengine", "doubao-Seed-1.6", "doubao-embedding")
-    evaluation = await evaluator.single_evaluator_agent_node(sta, llm, embeddings)
-    print(evaluation)
+    llm, embeddings = initialize_llm("Volcengine", "doubao-1.5-pro-32k", "doubao-embedding")
+    priority = await evaluator.single_evaluator_agent_node(sta, llm, embeddings)
+    print(priority)
     # evaluator.total_evaluator_agent_node(sta, llm)
 
 if __name__ == "__main__":

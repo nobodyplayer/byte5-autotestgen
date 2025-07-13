@@ -153,15 +153,74 @@ async def download_excel(filename: str):
     )
 
 
-@router.post("/fullPipeline")
-async def full_pipeline(
+@router.post("/detect_test_point")
+async def detect_test_point(
         request: Request,
         prd_text: str = Form(None)
 ):
+    # 获取服务与session
     ai_service = request.app.state.ai_service
+    session = request.session
+    # 流式执行
     return StreamingResponse(
-        ai_service.generate_test_cases_full_pipeline(
-            prd_text=prd_text or ""
+        ai_service.detected_test_point(
+            prd_text=prd_text or "",
+            session=session
+        ),
+        media_type="text/markdown"
+    )
+
+
+@router.post("/test_point_review")
+async def test_point_review(
+        request: Request,
+        user_review: str = Form(None)
+):
+    # 获取服务与session
+    ai_service = request.app.state.ai_service
+    session = request.session
+    # 流式执行
+    return StreamingResponse(
+        ai_service.test_point_review(
+            user_review=user_review or "",
+            session=session
+        ),
+        media_type="text/markdown"
+    )
+
+
+@router.post("/generate_test_case")
+async def generate_test_case(
+        request: Request
+):
+    # 获取服务与session
+    ai_service = request.app.state.ai_service
+    session = request.session
+    # 流式执行
+    return StreamingResponse(
+        ai_service.generate_test_case(
+            session=session
+        ),
+        media_type="text/markdown"
+    )
+
+
+@router.post("/test_case_review")
+async def test_case_review(
+        request: Request,
+        review_list: List[str] = Form(None),
+        review_function: str = Form(None),
+        review_text: str = Form(None)
+):
+    # 获取服务与session
+    ai_service = request.app.state.ai_service
+    session = request.session
+    # 流式执行
+    return StreamingResponse(
+        ai_service.test_case_review(
+            review_list=review_list or "",
+            review_function=review_function or "",
+            session=session
         ),
         media_type="text/markdown"
     )

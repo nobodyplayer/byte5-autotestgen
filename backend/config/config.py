@@ -12,6 +12,7 @@ RETRIEVER_SEARCH_K = 5
 CASE_GENERATION_BATCH_SIZE = 20
 CASE_EVALUATION_BATCH_SIZE = 15
 CASE_RECONSTRUCTION_BATCH_SIZE = 20
+CASE_PRIORITY_BATCH_SIZE = 30
 
 # LLM提供商配置
 LLM_PROVIDER_CONFIG = {
@@ -22,7 +23,7 @@ LLM_PROVIDER_CONFIG = {
             "doubao-pro": "doubao-1.5-vision-pro-250328",
             "doubao-lite": "doubao-1.5-vision-lite-250315",
             "doubao-embedding-large-text": "doubao-embedding-large-text-250515",
-            "doubao-1.5pro-32k": "doubao-1-5-pro-32k-250115",
+            "doubao-1.5-pro-32k": "doubao-1-5-pro-32k-250115",
             "doubao-embedding": "doubao-embedding-text-240715",
             "doubao-Seed-1.6": "doubao-seed-1-6-250615",
             "doubao-Seed-1.6-flash": "doubao-seed-1-6-flash-250615",

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from typing import List, Dict, Any, AsyncGenerator
 
@@ -14,8 +15,10 @@ from utils.llms import model_client
 from utils.llm_initial_util import initialize_llm
 from .feishu_service import FeishuService
 from .prompts import TestCasePrompts, SystemMessages, ErrorMessages
-from agent import generator, evaluator, reconstructor
+from agent import generator, evaluator, reconstructor, priority_setter
 from utils import agent_util
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -275,22 +278,24 @@ class AIService:
 
         return test_cases
 
-    async def generate_test_cases_full_pipeline(self, prd_text):
+    async def detected_test_point(self, prd_text, session):
 
         try:
             # --- 1.状态对象初始化 ---
-            sta = state.create_default_state()
+            if not session.get("state"):
+                session["state"] = state.create_default_state()
+            sta = session["state"]
             sta["prd_content"] = prd_text
             yield "### 阶段一：需求文档分析与测试点提取\n"
-            yield f"分析中... (最多进行5轮迭代，目标评估分数 > 4.5)\n\n"
+            yield f"分析中... (最多进行5轮迭代，目标评估分数 > 4.0)\n\n"
 
             # --- 2.文档分析迭代 ---
             eval_count = 0
             retry_count = 0
             max_score = 0.0
             best_record = []
-            # 评估得分大于4.5时跳出迭代
-            while not sta["total_evaluation_report"] or float(sta["total_evaluation_report"].get("score")) < 4.5:
+            # 评估得分大于4.0时跳出迭代
+            while not sta["total_evaluation_report"] or float(sta["total_evaluation_report"].get("score")) < 4.0:
                 # 评估次数抵达最大上限
                 if eval_count > 5:
                     yield f"分析迭代达到上限。最终选用得分最高的测试点集。\n\n"
@@ -301,7 +306,7 @@ class AIService:
                     yield f"**警告**: 在第 {eval_count + 1} 轮分析中，大模型未能提取出有效的测试点，终止分析。\n"
                     retry_count += 1
                     if retry_count > 5:
-                        exit(0)
+                        return
                     continue
                 sta["detected_test_point_dict"] = detected
                 # 评估报告，如果出现异常则结束本轮迭代
@@ -322,15 +327,46 @@ class AIService:
                     break
             # 取得分最高的测试点
             sta["detected_test_point_dict"] = best_record
+            session["state"] = sta
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"!!!!!!!!!! 在执行需求点提取时发生严重错误 !!!!!!!!!!\n{error_details}")
+            yield f"\n\n**致命错误:** 在执行需求点提取时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"
 
-            # TODO: 人工审核环节
+    async def test_point_review(self, user_review, session):
+        # --- 人工审核环节 ---
+        try:
+            # --- 1.状态对象初始化 ---
+            if not session.get("state"):
+                session["state"] = state.create_default_state()
+            sta = session["state"]
+            yield "### 阶段二：功能点人工审核\n"
+            yield f"分析中... \n\n"
 
-            # --- 3.测试点编号 ---
+            sta["total_evaluation_report"]["justification"] = user_review
+            detected = generator.analyser_agent_node(sta, self.llm)
+            sta["detected_test_point_dict"] = detected
+            session["state"] = sta
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"!!!!!!!!!! 在执行需求点审核时发生严重错误 !!!!!!!!!!\n{error_details}")
+            yield f"\n\n**致命错误:** 在执行需求点审核时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"
+
+    async def generate_test_case(self, session):
+        try:
+            # --- 1.状态对象初始化 ---
+            if not session.get("state"):
+                session["state"] = state.create_default_state()
+            sta = session["state"]
+            yield "### 阶段三：测试用例生成\n"
+            yield f"生成中...\n\n"
+
+            # --- 2.测试点编号 ---
             sta["detected_test_point_list"] = agent_util.test_case_number(sta["detected_test_point_dict"])
 
-            # --- 4.初始测试用例生成 ---
-            yield "### 阶段二：初始测试用例生成\n"
-            yield "生成中...\n\n"
+            # --- 3.初始测试用例生成 ---
             retry_count = 0
             while True:
                 test_cases = await generator.generator_agent_node(sta, self.llm, self.embeddings)
@@ -344,9 +380,9 @@ class AIService:
                     yield f"已成功生成 **{len(test_cases)}** 条初始测试用例。\n\n"
                     break
 
-            # --- 3.测试用例迭代 ---
-            yield "### 阶段三：测试用例评估与迭代重构\n"
-            yield "评估与重构中... (最多进行5轮)\n\n"
+            # --- 4.测试用例迭代 ---
+            yield "### 阶段四：测试用例评估与迭代重构\n"
+            yield "评估与重构中... (最多进行5轮，目标分数 > 4.0)\n\n"
 
             reconstruct_count = 0
             final_generated_cases = []
@@ -380,7 +416,7 @@ class AIService:
                         score_str = score_obj.get('score')
                         try:
                             score_value = float(score_str)
-                            if score_value >= 4.5:
+                            if score_value >= 4.0:
                                 # 添加到高质量组
                                 high_quality_cases.append(case)
                             else:
@@ -413,7 +449,16 @@ class AIService:
                 sta["generated_cases"] = await reconstructor.reconstructor_agent_node(sta, self.llm, self.embeddings)
                 reconstruct_count += 1
             yield f"--- 所有迭代重构完成 ---\n\n"
-            yield "### 阶段四：生成最终结果\n"
+            # --- 5.优先级设置 ---
+            yield "### 阶段五：优先级设置\n"
+            priority_list = await priority_setter.priority_setter_agent_node(sta, self.llm, self.embeddings)
+            priority_map = {item['case_ID']: item for item in priority_list}
+            for item in final_generated_cases:
+                item["priority"] = priority_map[item["case_ID"]]
+            sta["priority_generated_cases"] = final_generated_cases
+            session["state"] = sta
+            # --- 6. 最终输出 ---
+            yield "### 阶段六：最终输出\n"
             final_markdown = self._generate_markdown_from_test_cases(final_generated_cases)
             yield final_markdown
             # 在流的末尾，以HTML注释的形式，悄悄地附上JSON数据，供前端解析
@@ -421,5 +466,55 @@ class AIService:
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
-            print(f"!!!!!!!!!! 在full_pipeline中发生严重错误 !!!!!!!!!!\n{error_details}")
-            yield f"\n\n**致命错误:** 在执行管线时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"
+            logger.error(f"!!!!!!!!!! 在执行需求用例生成时发生严重错误 !!!!!!!!!!\n{error_details}")
+            yield f"\n\n**致命错误:** 在执行需求用例生成时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"
+
+    async def test_case_review(self, review_list, review_function, session):
+        # --- 测试用例人工审核环节 ---
+        try:
+            # --- 1.状态对象初始化 ---
+            if not session.get("state"):
+                session["state"] = state.create_default_state()
+            sta = session["state"]
+            yield "### 阶段四：测试用例人工审核\n"
+            yield f"分析中... \n\n"
+
+            # --- 2.找到对应的重构内容 ---
+            review_map = {item["case_ID"]: item for item in review_list}
+            retain_cases = []
+            priority_map = {}
+            for item in sta["priority_generated_cases"]:
+                if item["case_ID"] in review_map.keys():
+                    new_item = {
+                        "case_ID": item["case_ID"],
+                        "function": item["function"],
+                        "testPoint": item["testPoint"],
+                        "prerequisite": item["prerequisite"],
+                        "step": item["step"],
+                        "expected": item["expected"]
+                    }
+                    new_eval = {
+                        "case_ID": item["case_ID"],
+                        "justification": review_map["case_ID"]
+                    }
+                    sta["generated_cases"].append(new_item)
+                    sta["single_evaluation_report"].append(new_eval)
+                    priority_map[item["case_ID"]] = item["priority"]
+                else:
+                    retain_cases.append(item)
+            sta["priority_generated_cases"] = retain_cases
+
+            # --- 3.进行重构 ---
+            sta["generated_cases"] = await reconstructor.reconstructor_agent_node(sta, self.llm, self.embeddings)
+            # --- 4.还原优先级 ---
+            for item in sta["generated_cases"]:
+                item["priority"] = priority_map[item["case_ID"]]
+                sta["priority_generated_cases"].append(item)
+            sta["generated_cases"] = []
+            sta["single_evaluation_report"] = []
+            session["state"] = sta
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"!!!!!!!!!! 在执行需求点审核时发生严重错误 !!!!!!!!!!\n{error_details}")
+            yield f"\n\n**致命错误:** 在执行需求点审核时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"

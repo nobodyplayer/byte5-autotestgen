@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 import os
 from dotenv import load_dotenv
@@ -13,6 +14,9 @@ load_dotenv()
 # 如果上传目录不存在，则创建
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
+
+# 随机生成密钥
+SECRET_KEY = os.urandom(32).hex()
 
 # 创建AI服务实例
 feishu_app_id = os.getenv("FEISHU_APP_ID")
@@ -33,6 +37,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 配置Session
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    max_age=3600    # 有效期
+)
+
 
 # 包含路由
 app.include_router(test_cases.router)

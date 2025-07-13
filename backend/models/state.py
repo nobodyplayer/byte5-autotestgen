@@ -16,6 +16,7 @@ class TestCaseGenerationState(TypedDict):
     generated_cases: List[Dict]  # 生成的测试用例
     total_evaluation_report: Dict  # 总体评估报告
     single_evaluation_report: List[Dict]  # 单体评估报告
+    priority_generated_cases: List[Dict] # 最终的测试用例
 
 
 def create_default_state() -> TestCaseGenerationState:
