@@ -15,13 +15,12 @@ import { styled, keyframes } from '@mui/material/styles';
 const StreamingOutput = ({ content }) => {
   const outputRef = useRef(null);
 
-  // 过滤掉TEST_CASES_JSON注释，只显示用户应该看到的内容
+  // 过滤掉所有JSON注释，只显示用户应该看到的内容
   const getDisplayContent = (rawContent) => {
     if (!rawContent) return '';
-    
-    // 移除TEST_CASES_JSON注释
-    const filteredContent = rawContent.replace(/<!-- TEST_CASES_JSON: .+? -->/g, '');
-    
+    // 移除所有JSON注释，包括TEST_CASES_JSON和TEST_POINTS_JSON
+    let filteredContent = rawContent.replace(/<!-- TEST_CASES_JSON: .+? -->/g, '');
+    filteredContent = filteredContent.replace(/<!-- TEST_POINTS_JSON: .+? -->/g, '');
     return filteredContent;
   };
 

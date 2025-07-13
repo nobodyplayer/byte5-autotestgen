@@ -14,8 +14,9 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Header from './components/Header';
 import UploadArea from './components/UploadArea';
 import TestCaseDisplay from './components/TestCaseDisplay';
+import TestPointsDisplay from './components/TestPointsDisplay';
 import StreamingOutput from './components/StreamingOutput';
-import { generateTestCases, pingServer } from './services/api';
+import { generateTestCases, generateTestPoints, pingServer } from './services/api';
 
 // 创建现代化主题，参考 Notion、Linear 等产品设计
 const theme = createTheme({
@@ -236,6 +237,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingOutput, setStreamingOutput] = useState('');
   const [testCases, setTestCases] = useState([]);
+  const [testPoints, setTestPoints] = useState({});
   const [excelUrl, setExcelUrl] = useState('');
   const [serverStatus, setServerStatus] = useState('checking');
 
@@ -269,6 +271,101 @@ function App() {
     setExcelUrl('');
   };
 
+  // 新增：生成功能测试点的处理函数
+  const handleGenerateTestPoints = async (context, requirements, prdImages = [], prdText = null, feishuUrl = null) => {
+    if ((!prdImages || prdImages.length === 0) && !prdText && !feishuUrl) {
+      alert('请上传PRD图片、输入PRD文本或提供飞书文档链接');
+      return;
+    }
+    setIsGenerating(true);
+    setStreamingOutput('');
+    setTestPoints({});
+    try {
+      const formData = new FormData();
+      if (feishuUrl) {
+        formData.append('feishu_url', feishuUrl);
+      } else {
+        if (prdImages && prdImages.length > 0) {
+          prdImages.forEach((img) => {
+            formData.append('images', img);
+          });
+        }
+        if (prdText) {
+          formData.append('prd_text', prdText);
+        }
+      }
+      formData.append('context', context);
+      formData.append('requirements', requirements);
+
+      const response = await generateTestPoints(formData);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        setStreamingOutput(buffer);
+      }
+
+      // 流式输出结束后，从markdown内容中解析JSON
+      console.log('流式输出完成，开始解析功能测试点...');
+      console.log('完整的响应内容:', buffer);
+      
+      // 尝试从JSON代码块中提取数据
+      const jsonBlockRegex = /```json\s*({[\s\S]*?})\s*```/;
+      const jsonBlockMatch = buffer.match(jsonBlockRegex);
+      
+      if (jsonBlockMatch && jsonBlockMatch[1]) {
+        try {
+          const testPointsJson = JSON.parse(jsonBlockMatch[1]);
+          console.log('从JSON代码块解析的功能测试点数据:', testPointsJson);
+          setTestPoints(testPointsJson);
+        } catch (parseError) {
+          console.error('解析JSON代码块失败:', parseError);
+          // 如果JSON代码块解析失败，尝试查找纯JSON对象
+          const pureJsonRegex = /({\s*"[^"]+"\s*:\s*\[[^\]]*\][\s\S]*?})/;
+          const pureJsonMatch = buffer.match(pureJsonRegex);
+          
+          if (pureJsonMatch && pureJsonMatch[1]) {
+            try {
+              const testPointsJson = JSON.parse(pureJsonMatch[1]);
+              console.log('从纯JSON解析的功能测试点数据:', testPointsJson);
+              setTestPoints(testPointsJson);
+            } catch (pureJsonError) {
+              console.error('解析纯JSON也失败:', pureJsonError);
+            }
+          }
+        }
+      } else {
+        console.warn('未找到JSON代码块，尝试查找纯JSON对象');
+        // 如果没有找到JSON代码块，尝试查找纯JSON对象
+        const pureJsonRegex = /({\s*"[^"]+"\s*:\s*\[[^\]]*\][\s\S]*?})/;
+        const pureJsonMatch = buffer.match(pureJsonRegex);
+        
+        if (pureJsonMatch && pureJsonMatch[1]) {
+          try {
+            const testPointsJson = JSON.parse(pureJsonMatch[1]);
+            console.log('从纯JSON解析的功能测试点数据:', testPointsJson);
+            setTestPoints(testPointsJson);
+          } catch (pureJsonError) {
+            console.error('解析纯JSON失败:', pureJsonError);
+          }
+        } else {
+          console.warn('未找到任何可解析的JSON数据');
+        }
+      }
+    } catch (error) {
+      console.error('生成功能测试点时出错:', error);
+      alert('生成功能测试点时出错，请重试');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerateTestCases = async (context, requirements, prdImages = [], prdText = null, feishuUrl = null) => {
     if ((!prdImages || prdImages.length === 0) && !prdText && !feishuUrl) {
       alert('请上传PRD图片、输入PRD文本或提供飞书文档链接');
@@ -277,6 +374,7 @@ function App() {
     setIsGenerating(true);
     setStreamingOutput('');
     setTestCases([]);
+    setTestPoints({});
     try {
       const formData = new FormData();
       if (feishuUrl) {
@@ -519,12 +617,12 @@ function App() {
               flexDirection: 'column'
             }}>
               <UploadArea
-                onImageUpload={handleImageUpload}
-                onGenerateTestCases={handleGenerateTestCases}
-                isGenerating={isGenerating}
-                uploadedImage={uploadedImage}
-                serverStatus={serverStatus}
-              />
+          onImageUpload={handleImageUpload}
+          onGenerateTestCases={handleGenerateTestPoints}
+          isGenerating={isGenerating}
+          uploadedImage={uploadedImage}
+          serverStatus={serverStatus}
+        />
             </Box>
 
             {/* 右侧区域 - 输出 */}
@@ -553,10 +651,10 @@ function App() {
                 }}>
                   <Box>
                     <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
-                      {isGenerating ? '正在生成测试用例' : '测试用例结果'}
+                      {isGenerating ? '正在生成功能测试点' : '功能测试点结果'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {isGenerating ? '请稍候，AI正在分析并生成测试用例...' : 
+                      {isGenerating ? '请稍候，AI正在分析并生成功能测试点...' : 
                        testCases.length > 0 ? `已生成 ${testCases.length} 个测试用例` : 
                        '上传图片或输入PRD文本开始生成'}
                     </Typography>
@@ -574,7 +672,12 @@ function App() {
                 </Box>
 
                 <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  {isGenerating ? (
+                  {/* 优先显示测试点结果，如果没有则显示流式输出，最后显示测试用例或空状态 */}
+                  {testPoints && Object.keys(testPoints).length > 0 ? (
+                    <TestPointsDisplay
+                      testPoints={testPoints}
+                    />
+                  ) : (isGenerating || streamingOutput) ? (
                     <StreamingOutput content={streamingOutput} />
                   ) : testCases.length > 0 ? (
                     <TestCaseDisplay
@@ -604,7 +707,7 @@ function App() {
                         <AutoAwesomeIcon sx={{ fontSize: 40, color: 'grey.400' }} />
                       </Box>
                       <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
-                        开始生成测试用例
+                        开始生成功能测试点
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300 }}>
                         选择图片上传或输入PRD文本，填写相关信息后点击生成按钮

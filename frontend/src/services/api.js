@@ -34,6 +34,29 @@ export const generateTestCases = async (formData) => {
   }
 };
 
+// 生成功能测试点的API函数
+export const generateTestPoints = async (formData) => {
+  try {
+    console.log('API 服务: 发送功能测试点生成请求到后端...');
+    console.log('API 服务: 请求数据:', formData);
+
+    // 使用原生 fetch 来处理流式响应
+        const response = await fetch(`${API_BASE_URL}/test-cases/generate`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status} ${response.statusText}`);
+    }
+
+    return response;
+  } catch (error) {
+    console.error('API 服务: 生成功能测试点错误:', error);
+    throw error;
+  }
+};
+
 export const exportToExcel = async (testCases) => {
   try {
     const response = await api.post('/test-cases/export', testCases, {
@@ -42,6 +65,23 @@ export const exportToExcel = async (testCases) => {
     return response;
   } catch (error) {
     console.error('Error exporting to Excel:', error);
+    throw error;
+  }
+};
+
+export const generateMindMap = async (testCases) => {
+  try {
+    console.log('API 服务: 发送思维导图生成请求到后端...');
+    console.log('API 服务: 测试用例数据:', testCases);
+    
+    const response = await api.post('/test-cases/generate-mindmap', {
+      test_cases: testCases
+    });
+    
+    console.log('API 服务: 思维导图生成成功:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('API 服务: 生成思维导图错误:', error);
     throw error;
   }
 };
