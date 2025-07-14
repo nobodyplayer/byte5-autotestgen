@@ -27,7 +27,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploadedImage, serverStatus = 'checking' }) => {
-  const [context, setContext] = useState('');
+  // 删除 context 相关状态
   const [requirements, setRequirements] = useState('');
   const [inputType, setInputType] = useState('prd'); // 'prd' 或 'feishu'
   const [prdText, setPrdText] = useState('');
@@ -58,9 +58,9 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
   const handleSubmit = (e) => {
     e.preventDefault();
     if (inputType === 'prd') {
-      onGenerateTestCases(context, requirements, prdImages, prdText);
+      onGenerateTestCases('', requirements, prdImages, prdText);
     } else if (inputType === 'feishu') {
-      onGenerateTestCases(context, requirements, null, null, feishuUrl);
+      onGenerateTestCases('', requirements, null, null, feishuUrl);
     }
   };
 
@@ -84,9 +84,7 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
           测试用例生成器
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          上传流程图或输入PRD文档，AI将为您生成完整的测试用例
-        </Typography>
+
       </Box>
       
       <form onSubmit={handleSubmit}>
@@ -363,36 +361,13 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
               </Typography>
               <Stack spacing={3}>
                 <TextField
-                  label="系统上下文"
-                  multiline
-                  rows={4}
-                  fullWidth
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                  placeholder="请描述被测试系统的背景信息...\n\n例如：\n• 系统类型：Web应用/移动应用/API服务\n• 技术架构：前后端分离/微服务架构\n• 用户群体：C端用户/B端商家/管理员\n• 业务场景：电商交易/内容管理/数据分析"
-                  variant="outlined"
-                  required
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      bgcolor: 'grey.50',
-                      '&:hover': {
-                        bgcolor: 'white',
-                      },
-                      '&.Mui-focused': {
-                        bgcolor: 'white',
-                      }
-                    }
-                  }}
-                />
-                <TextField
                   label="测试需求"
                   multiline
-                  rows={4}
+                  rows={6}
                   fullWidth
                   value={requirements}
                   onChange={(e) => setRequirements(e.target.value)}
-                  placeholder="请描述测试用例生成的具体要求...\n\n例如：\n• 测试类型：功能测试/接口测试/UI测试\n• 覆盖范围：正常流程/异常流程/边界条件\n• 测试深度：冒烟测试/回归测试/全量测试\n• 特殊要求：性能指标/安全验证/兼容性"
+                  placeholder="请详细描述测试需求和期望的测试覆盖范围...\n\n例如：\n• 功能测试：用户登录、商品搜索、订单支付\n• 性能测试：并发用户数、响应时间\n• 兼容性测试：浏览器兼容、移动端适配\n• 安全测试：输入验证、权限控制"
                   variant="outlined"
                   required
                   sx={{
@@ -420,7 +395,6 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
               fullWidth
               disabled={
                 isGenerating || 
-                !context || 
                 !requirements || 
                 serverStatus !== 'connected' ||
                 (inputType === 'prd' && !prdText.trim() && prdImages.length === 0) ||

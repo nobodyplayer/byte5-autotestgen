@@ -680,20 +680,17 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
     <Paper 
       elevation={1} 
       sx={{ 
-        p: 3, 
-        mt: 3, 
+        p: 2.5, 
+        mt: 2,
         borderRadius: 3,
         backgroundColor: '#ffffff',
         border: '1px solid #e0e0e0'
       }}
     >
-      {/* 头部信息和统计 */}
-       <Box sx={{ mb: 4 }}>
-         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-           <Typography variant="h5" sx={{ fontWeight: 600, color: '#1976d2' }}>
-             功能测试点审核
-           </Typography>
-           
+      {/* 头部控制区域 */}
+       <Box sx={{ mb: 3 }}>
+         {/* 视图切换和统计信息在同一行 */}
+         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
            {/* 视图切换按钮 */}
            <ToggleButtonGroup
              value={viewMode}
@@ -724,33 +721,37 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                思维导图
              </ToggleButton>
            </ToggleButtonGroup>
-         </Box>
-         
-         {/* 统计信息 */}
-         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-           <Chip 
-             label={`总计 ${stats.total}`}
-             variant="outlined"
-             sx={{ borderColor: '#1976d2', color: '#1976d2', fontWeight: 500 }}
-           />
-           <Chip 
-             label={`通过 ${stats.approved}`}
-             sx={{ backgroundColor: '#e8f5e8', color: '#2e7d32', fontWeight: 500 }}
-           />
-           <Chip 
-             label={`不通过 ${stats.rejected}`}
-             sx={{ backgroundColor: '#ffebee', color: '#d32f2f', fontWeight: 500 }}
-           />
-           <Chip 
-             label={`待审核 ${stats.pending}`}
-             sx={{ backgroundColor: '#fff3e0', color: '#f57c00', fontWeight: 500 }}
-           />
+           
+           {/* 统计信息 */}
+           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+             <Chip 
+               label={`总计 ${stats.total}`}
+               variant="outlined"
+               size="small"
+               sx={{ borderColor: '#1976d2', color: '#1976d2', fontWeight: 500 }}
+             />
+             <Chip 
+               label={`通过 ${stats.approved}`}
+               size="small"
+               sx={{ backgroundColor: '#e8f5e8', color: '#2e7d32', fontWeight: 500 }}
+             />
+             <Chip 
+               label={`不通过 ${stats.rejected}`}
+               size="small"
+               sx={{ backgroundColor: '#ffebee', color: '#d32f2f', fontWeight: 500 }}
+             />
+             <Chip 
+               label={`待审核 ${stats.pending}`}
+               size="small"
+               sx={{ backgroundColor: '#fff3e0', color: '#f57c00', fontWeight: 500 }}
+             />
+           </Box>
          </Box>
        </Box>
 
       {/* 模块标签页 */}
       {viewMode !== 'table' && (
-        <Box sx={{ mb: 3 }}>
+        <Box sx={{ mb: 2 }}>
           <Tabs 
             value={selectedModule} 
             onChange={handleModuleChange}
@@ -759,6 +760,9 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
             sx={{
               '& .MuiTabs-indicator': {
                 backgroundColor: '#1976d2'
+              },
+              '& .MuiTabs-root': {
+                minHeight: 40
               }
             }}
           >
@@ -800,7 +804,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
         </Box>
       )}
 
-      <Divider sx={{ backgroundColor: '#e0e0e0', mb: 4 }} />
+      <Divider sx={{ backgroundColor: '#e0e0e0', mb: 2 }} />
 
       {/* 根据视图模式显示不同内容 */}
       {viewMode === 'mindmap' ? (
@@ -808,11 +812,10 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
         ) : viewMode === 'table' ? (
         <Box>
           {/* 搜索和筛选器 */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: '#f8f9fa', borderRadius: 2 }}>
-            {/* 搜索框 */}
-            <Box sx={{ mb: 2 }}>
+          <Box sx={{ mb: 1.5, p: 1.5, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+            {/* 搜索框和功能按钮在同一行 */}
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', mb: 1.5 }}>
               <TextField
-                fullWidth
                 size="small"
                 placeholder="搜索测试点内容、模块名称或场景类型..."
                 value={searchKeyword}
@@ -832,6 +835,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                   )
                 }}
                 sx={{
+                  flex: 1,
                   '& .MuiOutlinedInput-root': {
                     bgcolor: 'white',
                     '&:hover': {
@@ -842,11 +846,47 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                   }
                 }}
               />
+              
+              {/* 功能按钮 */}
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowCoverageAnalysis(!showCoverageAnalysis)}
+                  startIcon={showCoverageAnalysis ? '📊' : '📈'}
+                >
+                  覆盖率指标
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowQualityMetrics(!showQualityMetrics)}
+                  startIcon={showQualityMetrics ? '🎯' : '📋'}
+                >
+                  质量指标
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowBatchActions(!showBatchActions)}
+                  startIcon={showBatchActions ? '✅' : '☑️'}
+                >
+                  批量操作
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => handleExport('csv')}
+                  startIcon={'📤'}
+                >
+                  导出CSV
+                </Button>
+              </Box>
             </Box>
 
             {/* 筛选器 - 四个筛选项在一排 */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+              <FormControl size="small" sx={{ minWidth: 110 }}>
                 <InputLabel>状态</InputLabel>
                 <Select
                   value={tableFilterStatus}
@@ -860,7 +900,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                 </Select>
               </FormControl>
 
-              <FormControl size="small" sx={{ minWidth: 120 }}>
+              <FormControl size="small" sx={{ minWidth: 110 }}>
                 <InputLabel>优先级</InputLabel>
                 <Select
                   value={tableFilterPriority}
@@ -874,7 +914,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                 </Select>
               </FormControl>
 
-              <FormControl size="small" sx={{ minWidth: 150 }}>
+              <FormControl size="small" sx={{ minWidth: 130 }}>
                 <InputLabel>功能模块</InputLabel>
                 <Select
                   value={tableFilterModule}
@@ -888,7 +928,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                 </Select>
               </FormControl>
 
-              <FormControl size="small" sx={{ minWidth: 150 }}>
+              <FormControl size="small" sx={{ minWidth: 130 }}>
                 <InputLabel>测试类型</InputLabel>
                 <Select
                   value={tableFilterTestType}
@@ -917,87 +957,20 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                 重置筛选
               </Button>
             </Box>
-
-
-
-            {/* 统计信息和功能按钮 */}
-             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                 <Chip 
-                   label={`总计: ${getFilteredAndSortedTableData().length} 条`} 
-                   color="primary" 
-                   variant="outlined" 
-                   size="small"
-                 />
-                 <Chip 
-                   label={`通过: ${getFilteredAndSortedTableData().filter(item => item.status === 'passed').length} 条`} 
-                   color="success" 
-                   variant="outlined" 
-                   size="small"
-                 />
-                 <Chip 
-                   label={`待审核: ${getFilteredAndSortedTableData().filter(item => item.status === 'pending').length} 条`} 
-                   color="warning" 
-                   variant="outlined" 
-                   size="small"
-                 />
-                 <Chip 
-                   label={`不通过: ${getFilteredAndSortedTableData().filter(item => item.status === 'failed').length} 条`} 
-                   color="error" 
-                   variant="outlined" 
-                   size="small"
-                 />
-               </Box>
-               
-               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                 <Button
-                   variant="outlined"
-                   size="small"
-                   onClick={() => setShowCoverageAnalysis(!showCoverageAnalysis)}
-                   startIcon={showCoverageAnalysis ? '📊' : '📈'}
-                 >
-                   覆盖率分析
-                 </Button>
-                 <Button
-                   variant="outlined"
-                   size="small"
-                   onClick={() => setShowQualityMetrics(!showQualityMetrics)}
-                   startIcon={showQualityMetrics ? '🎯' : '📋'}
-                 >
-                   质量指标
-                 </Button>
-                 <Button
-                   variant="outlined"
-                   size="small"
-                   onClick={() => setShowBatchActions(!showBatchActions)}
-                   startIcon={showBatchActions ? '✅' : '☑️'}
-                 >
-                   批量操作
-                 </Button>
-                 <Button
-                   variant="outlined"
-                   size="small"
-                   onClick={() => handleExport('csv')}
-                   startIcon={'📤'}
-                 >
-                   导出CSV
-                 </Button>
-               </Box>
-             </Box>
           </Box>
 
            {/* 覆盖率分析面板 */}
            {showCoverageAnalysis && (
-             <Card sx={{ mb: 3, border: '1px solid #e3f2fd' }}>
-               <CardContent>
-                 <Typography variant="h6" sx={{ mb: 2, color: '#1976d2', display: 'flex', alignItems: 'center', gap: 1 }}>
+             <Card sx={{ mb: 1.5, border: '1px solid #e3f2fd' }}>
+               <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                 <Typography variant="h6" sx={{ mb: 1.5, color: '#1976d2', display: 'flex', alignItems: 'center', gap: 1 }}>
                    📊 测试覆盖率分析
                  </Typography>
-                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 2 }}>
+                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 1.5 }}>
                    {getCoverageAnalysis().moduleCoverage.map((module, index) => (
-                     <Card key={index} variant="outlined" sx={{ p: 2 }}>
+                     <Card key={index} variant="outlined" sx={{ p: 1.5 }}>
                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>{module.module}</Typography>
-                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                            <Typography variant="body2">测试用例数:</Typography>
                            <Chip label={module.testCount} size="small" color="primary" />
@@ -1024,12 +997,12 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
 
            {/* 质量指标面板 */}
            {showQualityMetrics && (
-             <Card sx={{ mb: 3, border: '1px solid #e8f5e9' }}>
-               <CardContent>
-                 <Typography variant="h6" sx={{ mb: 2, color: '#388e3c', display: 'flex', alignItems: 'center', gap: 1 }}>
+             <Card sx={{ mb: 1.5, border: '1px solid #e8f5e9' }}>
+               <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                 <Typography variant="h6" sx={{ mb: 1.5, color: '#388e3c', display: 'flex', alignItems: 'center', gap: 1 }}>
                    🎯 测试质量指标
                  </Typography>
-                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 1.5 }}>
                    {(() => {
                      const metrics = getQualityMetrics();
                      return [
@@ -1039,7 +1012,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                        { label: '自动化潜力', value: metrics.automationPotential, unit: '%', color: 'success' },
                        { label: '平均用例/模块', value: metrics.avgTestsPerModule, unit: '个', color: 'info' }
                      ].map((metric, index) => (
-                       <Card key={index} variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                       <Card key={index} variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
                          <Typography variant="h4" sx={{ color: `${metric.color}.main`, fontWeight: 'bold' }}>
                            {metric.value}{metric.unit}
                          </Typography>
@@ -1056,12 +1029,12 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
 
            {/* 批量操作面板 */}
            {showBatchActions && (
-             <Card sx={{ mb: 3, border: '1px solid #fff3e0' }}>
-               <CardContent>
-                 <Typography variant="h6" sx={{ mb: 2, color: '#f57c00', display: 'flex', alignItems: 'center', gap: 1 }}>
+             <Card sx={{ mb: 1.5, border: '1px solid #fff3e0' }}>
+               <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                 <Typography variant="h6" sx={{ mb: 1.5, color: '#f57c00', display: 'flex', alignItems: 'center', gap: 1 }}>
                    ✅ 批量操作
                  </Typography>
-                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                 <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
                    <Typography variant="body2">
                      已选择 {batchSelection.length} 项
                    </Typography>
@@ -1097,10 +1070,10 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
            )}
  
            {/* 表格 */}
-           <TableContainer component={Paper} sx={{ maxHeight: 600, border: '1px solid #e0e0e0' }}>
-            <Table stickyHeader>
+           <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 280px)', border: '1px solid #e0e0e0' }}>
+            <Table stickyHeader size="small">
               <TableHead>
-                <TableRow>
+                  <TableRow sx={{ '& .MuiTableCell-root': { py: 0.5, fontSize: '0.875rem' } }}>
                   {showBatchActions && (
                     <TableCell sx={{ fontWeight: 600, width: 50 }}>
                       <Checkbox
@@ -1424,24 +1397,24 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
 
       
       {/* 底部全局操作区域 */}
-      <Box sx={{ mt: 4 }}>
+      <Box sx={{ mt: 3 }}>
         {/* 全局操作区域 */}
-        <Card sx={{ mb: 3, backgroundColor: '#fff3cd', border: '1px solid #ffeaa7' }}>
+        <Card sx={{ mb: 2, backgroundColor: '#fff3cd', border: '1px solid #ffeaa7' }}>
           <CardContent>
-            <Typography variant="h6" sx={{ mb: 2, color: '#856404', fontWeight: 600 }}>
-              全局操作（针对所有模块）
+            <Typography variant="h6" sx={{ mb: 1.5, color: '#856404', fontWeight: 600 }}>
+              整体优化意见
             </Typography>
             
             <TextField
                fullWidth
                multiline
-               rows={4}
-               placeholder="请输入对所有功能模块的整体评价和建议，例如：\n• 某个功能点缺失了\n• 重复了用例\n• 不同功能点之间的用例重复\n• 模块间的功能重叠\n• 其他优化建议..."
+               rows={2}
+               placeholder="请输入对所有功能模块的整体评价和建议..."
                variant="outlined"
                value={overallFeedback}
                onChange={(e) => handleOverallFeedbackChange(e.target.value)}
                sx={{
-                 mb: 3,
+                 mb: 1.5,
                  '& .MuiOutlinedInput-root': {
                    backgroundColor: '#ffffff',
                    '& fieldset': { borderColor: '#ffeaa7' },
@@ -1455,13 +1428,13 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                }}
              />
             
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Button
                  variant="contained"
                  color="primary"
                  sx={{ 
                    textTransform: 'none',
-                   minWidth: 140,
+                   minWidth: 120,
                    backgroundColor: '#28a745',
                    '&:hover': { backgroundColor: '#218838' }
                  }}
@@ -1471,24 +1444,10 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                </Button>
                
                <Button
-                 variant="outlined"
-                 sx={{ 
-                   textTransform: 'none',
-                   minWidth: 120,
-                   color: '#856404',
-                   borderColor: '#ffeaa7',
-                   '&:hover': { borderColor: '#f39c12', backgroundColor: '#fff3cd' }
-                 }}
-                 onClick={handleSaveOverallFeedback}
-               >
-                 保存评价
-               </Button>
-               
-               <Button
                  variant="contained"
                  sx={{ 
                    textTransform: 'none',
-                   minWidth: 140,
+                   minWidth: 120,
                    backgroundColor: '#f39c12',
                    color: '#ffffff',
                    '&:hover': { backgroundColor: '#e67e22' }
@@ -1498,21 +1457,10 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                  回环优化
                </Button>
             </Box>
-            
-            <Typography variant="body2" sx={{ color: '#856404', fontStyle: 'italic' }}>
-              • 生成测试用例：基于所有模块的审核结果生成完整的测试用例<br/>
-              • 回环优化：处理所有模块中未通过的测试点，结合整体评价进行优化<br/>
-              • 保存评价：保存当前的整体评价内容
-            </Typography>
           </CardContent>
         </Card>
 
-        {/* 底部提示信息 */}
-        <Box sx={{ textAlign: 'center', p: 2, backgroundColor: '#f5f5f5', borderRadius: 2 }}>
-          <Typography variant="body2" sx={{ color: '#666', fontWeight: 400 }}>
-            请逐一审核功能测试点，完成后可进行全局操作：生成测试用例或回环优化
-          </Typography>
-        </Box>
+
       </Box>
       
       {/* 表格详情对话框 */}

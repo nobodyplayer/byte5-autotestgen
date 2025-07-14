@@ -32,7 +32,7 @@ async def generate_test_cases(
     prd_text: str = Form(None),
     images: List[UploadFile] = File(default=[]),
     feishu_url: str = Form(None),
-    context: str = Form(...),
+    context: str = Form(""),
     requirements: str = Form(...)
 ):
     """
@@ -51,7 +51,7 @@ async def generate_test_cases(
         return StreamingResponse(
             ai_service.generate_test_points_stream(
                 feishu_url=feishu_url,
-                context=context,
+                context="",
                 requirements=requirements
             ),
             media_type="text/plain; charset=utf-8"
@@ -71,7 +71,7 @@ async def generate_test_cases(
                 ai_service.generate_test_points_stream(
                     prd_text=prd_text,
                     prd_images=image_paths,
-                    context=context,
+                    context="",
                     requirements=requirements
                 ),
                 media_type="text/plain; charset=utf-8"

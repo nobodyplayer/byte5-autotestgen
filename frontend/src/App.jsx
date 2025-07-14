@@ -705,7 +705,7 @@ function App() {
                       <Typography variant="body2" color="text.secondary">
                         {isGenerating ? '请稍候，AI正在分析并生成功能测试点...' : 
                          testCases.length > 0 ? `已生成 ${testCases.length} 个测试用例` : 
-                         '上传图片或输入PRD文本开始生成'}
+                         ''}
                       </Typography>
                     </Box>
                     {!isGenerating && testCases.length > 0 && (
