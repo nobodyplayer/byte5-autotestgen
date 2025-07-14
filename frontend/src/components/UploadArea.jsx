@@ -11,7 +11,12 @@ import {
   CircularProgress,
   Chip,
   Divider,
-  Stack
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -21,6 +26,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ArticleIcon from '@mui/icons-material/Article';
 import LinkIcon from '@mui/icons-material/Link';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import ClearIcon from '@mui/icons-material/Clear';
+import InfoIcon from '@mui/icons-material/Info';
 import { useDropzone } from 'react-dropzone';
 import Grid from '@mui/material/Grid';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -28,11 +36,13 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploadedImage, serverStatus = 'checking' }) => {
   // 删除 context 相关状态
-  const [requirements, setRequirements] = useState('');
+  const [humanReferenceCases, setHumanReferenceCases] = useState('');
   const [inputType, setInputType] = useState('prd'); // 'prd' 或 'feishu'
   const [prdText, setPrdText] = useState('');
   const [feishuUrl, setFeishuUrl] = useState('');
   const [prdImages, setPrdImages] = useState([]); // 存储PRD相关的图片
+  const [humanCasesInputMode, setHumanCasesInputMode] = useState('text'); // 'text' or 'csv'
+  const [humanCasesCsvFile, setHumanCasesCsvFile] = useState(null);
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles && acceptedFiles.length > 0) {
@@ -58,9 +68,29 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
   const handleSubmit = (e) => {
     e.preventDefault();
     if (inputType === 'prd') {
-      onGenerateTestCases('', requirements, prdImages, prdText);
+      onGenerateTestCases('', humanReferenceCases, prdImages, prdText, null, humanCasesCsvFile);
     } else if (inputType === 'feishu') {
-      onGenerateTestCases('', requirements, null, null, feishuUrl);
+      onGenerateTestCases('', humanReferenceCases, null, null, feishuUrl, humanCasesCsvFile);
+    }
+  };
+
+  const handleHumanCasesCsvUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+        setHumanCasesCsvFile(file);
+      } else {
+        alert('请上传CSV格式的文件');
+        setHumanCasesCsvFile(null);
+      }
+    }
+  };
+
+  const handleRemoveHumanCasesCsv = () => {
+    setHumanCasesCsvFile(null);
+    const fileInput = document.getElementById('human-cases-csv-input');
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -357,21 +387,16 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
           <Grid item xs={12}>
             <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 3 }}>
-                测试配置
+                人工参考用例配置
               </Typography>
               <Stack spacing={3}>
-                <TextField
-                  label="测试需求"
-                  multiline
-                  rows={6}
-                  fullWidth
-                  value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
-                  placeholder="请详细描述测试需求和期望的测试覆盖范围...\n\n例如：\n• 功能测试：用户登录、商品搜索、订单支付\n• 性能测试：并发用户数、响应时间\n• 兼容性测试：浏览器兼容、移动端适配\n• 安全测试：输入验证、权限控制"
-                  variant="outlined"
-                  required
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>选择输入方式</InputLabel>
+                  <Select
+                    value={humanCasesInputMode}
+                    onChange={(e) => setHumanCasesInputMode(e.target.value)}
+                    label="选择输入方式"
+                    sx={{
                       borderRadius: 2,
                       bgcolor: 'grey.50',
                       '&:hover': {
@@ -380,9 +405,91 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
                       '&.Mui-focused': {
                         bgcolor: 'white',
                       }
-                    }
-                  }}
-                />
+                    }}
+                  >
+                    <MenuItem value="text">直接文本输入</MenuItem>
+                    <MenuItem value="csv">CSV文件上传</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {humanCasesInputMode === 'text' ? (
+                  <TextField
+                    label="人工参考用例（可选）"
+                    multiline
+                    rows={6}
+                    fullWidth
+                    value={humanReferenceCases}
+                    onChange={(e) => setHumanReferenceCases(e.target.value)}
+                    placeholder="请输入人工编写的参考测试用例，AI将参考这些用例生成更准确的测试点...\n\n例如：\n• 用户登录测试：输入正确用户名密码，验证登录成功\n• 密码错误测试：输入错误密码，验证提示错误信息\n• 商品搜索测试：输入关键词，验证搜索结果准确性\n• 订单支付测试：选择商品下单，验证支付流程完整性"
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        bgcolor: 'grey.50',
+                        '&:hover': {
+                          bgcolor: 'white',
+                        },
+                        '&.Mui-focused': {
+                          bgcolor: 'white',
+                        }
+                      }
+                    }}
+                  />
+                ) : (
+                  <Box>
+                    <input
+                      id="human-cases-csv-input"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleHumanCasesCsvUpload}
+                      style={{ display: 'none' }}
+                    />
+                    <label htmlFor="human-cases-csv-input">
+                      <Button
+                        variant="outlined"
+                        component="span"
+                        startIcon={<FileUploadIcon />}
+                        fullWidth
+                        sx={{ 
+                          mb: 2, 
+                          py: 2,
+                          borderRadius: 2,
+                          bgcolor: 'grey.50',
+                          '&:hover': {
+                            bgcolor: 'white',
+                          }
+                        }}
+                      >
+                        选择人工用例CSV文件（可选）
+                      </Button>
+                    </label>
+                    {humanCasesCsvFile && (
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 1, 
+                        p: 2, 
+                        bgcolor: 'success.50', 
+                        borderRadius: 2,
+                        border: '1px solid',
+                        borderColor: 'success.200',
+                        mb: 2
+                      }}>
+                        <CloudUploadIcon sx={{ color: 'success.main' }} />
+                        <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                          {humanCasesCsvFile.name}
+                        </Typography>
+                        <IconButton size="small" onClick={handleRemoveHumanCasesCsv}>
+                          <ClearIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    )}
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
+                      <InfoIcon fontSize="small" />
+                      CSV文件应包含人工参考用例，每行一个用例
+                    </Typography>
+                  </Box>
+                )}
               </Stack>
             </Box>
           </Grid>
@@ -395,7 +502,6 @@ const UploadArea = ({ onImageUpload, onGenerateTestCases, isGenerating, uploaded
               fullWidth
               disabled={
                 isGenerating || 
-                !requirements || 
                 serverStatus !== 'connected' ||
                 (inputType === 'prd' && !prdText.trim() && prdImages.length === 0) ||
                 (inputType === 'feishu' && !feishuUrl.trim())

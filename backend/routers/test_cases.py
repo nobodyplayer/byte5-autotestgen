@@ -33,26 +33,47 @@ async def generate_test_cases(
     images: List[UploadFile] = File(default=[]),
     feishu_url: str = Form(None),
     context: str = Form(""),
-    requirements: str = Form(...)
+    human_reference_cases: str = Form(""),
+    human_cases_csv_file: Optional[UploadFile] = File(None)
 ):
     """
     结构化功能测试点生成：
     1. 数据预处理（文本切块、图片分类）
     2. 功能模块分解
     3. 按模块生成测试点
+    4. 自动调用评估模块进行质量评估
     支持两种输入模式：
     1. PRD输入（文本+多图片）：prd_text + images
     2. 飞书文档输入：feishu_url
     """
     ai_service = request.app.state.ai_service
     image_paths = []
+    
+    # 处理人工参考用例：文本输入或CSV文件
+    human_cases_text = ""
+    if human_cases_csv_file and human_cases_csv_file.filename:
+        content = await human_cases_csv_file.read()
+        csv_content = content.decode('utf-8')
+        csv_reader = csv.reader(io.StringIO(csv_content))
+        human_cases = []
+        # 跳过标题行（如果有）
+        headers = next(csv_reader, None)
+        for row in csv_reader:
+            if row:
+                case_text = ' '.join(row).strip()
+                if case_text:
+                    human_cases.append(case_text)
+        human_cases_text = '\n'.join(human_cases)
+    elif human_reference_cases:
+        human_cases_text = human_reference_cases
+    
     if feishu_url:
         # 飞书文档模式
         return StreamingResponse(
-            ai_service.generate_test_points_stream(
+            ai_service.generate_test_points_with_evaluation_stream(
                 feishu_url=feishu_url,
                 context="",
-                requirements=requirements
+                human_reference_cases=human_cases_text
             ),
             media_type="text/plain; charset=utf-8"
         )
@@ -68,11 +89,11 @@ async def generate_test_cases(
                         buffer.write(content)
                     image_paths.append(file_path)
             return StreamingResponse(
-                ai_service.generate_test_points_stream(
+                ai_service.generate_test_points_with_evaluation_stream(
                     prd_text=prd_text,
                     prd_images=image_paths,
                     context="",
-                    requirements=requirements
+                    human_reference_cases=human_cases_text
                 ),
                 media_type="text/plain; charset=utf-8"
             )

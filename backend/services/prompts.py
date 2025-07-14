@@ -1,74 +1,258 @@
 class TestCasePrompts:
     @staticmethod
     def get_evaluation_prompt(human_reference_cases: str, ai_generated_cases: str) -> str:
-        return f"""
-    # 角色与使命
+        # 如果没有人工参考用例，进行自我评估
+        if not human_reference_cases or not human_reference_cases.strip():
+            return f"""
+# 角色与使命
 
-    你是一位首席质量保障架构师（Lead Quality Assurance Architect），同时扮演AI辅助测试教练（AI-Assistive QA Coach）的角色。你的核心使命是对比AI自动生成用例与人工参考用例，输出一份结构化、可视化的Markdown评测报告。
+你是一位首席质量保障架构师（Lead Quality Assurance Architect），专门负责AI生成测试用例的质量评估。你的核心使命是对AI自动生成的测试用例进行全面的自我评估，输出一份结构化、可视化的Markdown评测报告。
 
-    ## 评测内容分为两个层次：
-    1. **整体评估**：对比两组测试集的整体表现，从策略和覆盖面给出顶层评估。
-    2. **分项点评**：对每一个AI生成的测试用例进行独立、多维度的质量打分和诊断。
+# 评测框架与指导原则
 
-    # 评测框架与指导原则
+## 测试用例质量评估维度（1-5分）
+- 📋 **完整性评估**：测试用例是否覆盖了主要功能场景，包含正常流程、异常流程、边界条件
+- 🎯 **准确性评估**：测试步骤是否逻辑合理，预期结果是否明确可验证，测试数据是否合适
+- 🔍 **可执行性评估**：测试步骤是否具体可操作，前置条件是否明确，测试环境要求是否清晰
+- 📊 **质量指标**：测试用例数量是否合理，优先级划分是否恰当，测试类型分布是否均衡
 
-    ## A. 测试集整体评估维度（1-5分）
-    - 核心场景覆盖度（Core Scenario Coverage）
-    - 测试深度与广度（Test Depth & Breadth）
-    - 创新性与附加值（Novelty & Value-Add）
-    - 简洁与无冗余（Conciseness & No Redundancy）
+# 输入信息
 
-    ## B. 单个测试用例评估维度（1-5分）
-    - 语义匹配度（Semantic Match）
-    - 表达清晰度（Clarity）
-    - 可执行性（Actionability）
-    - 自动化友好度（Automation Friendliness）
+【AI自动生成用例 (AI-Generated Cases)】：
+{ai_generated_cases}
 
-    # 输入信息
+# 输出要求
+你必须输出一份结构化的Markdown评测报告，包含如下分块：
 
-    【人工参考用例 (Human Reference Cases)】：
-    {human_reference_cases}
+---
 
-    【AI自动生成用例 (AI-Generated Cases)】：
-    {ai_generated_cases}
+## 1. 📊 评测总览
+> 用简明的引用块总结AI生成测试用例的整体质量、覆盖情况和改进建议。
 
-    # 输出要求
-    你必须输出一份结构化的Markdown评测报告，包含如下分块：
+## 2. 🎯 整体评估指标
+<!-- OVERALL_METRICS_START -->
+```json
+{
+  "completeness": {
+    "score": 0,
+    "description": "完整性评估：功能覆盖度和场景完整性",
+    "details": "具体评估说明"
+  },
+  "accuracy": {
+    "score": 0,
+    "description": "准确性评估：逻辑合理性和结果可验证性",
+    "details": "具体评估说明"
+  },
+  "executability": {
+    "score": 0,
+    "description": "可执行性评估：操作具体性和环境清晰度",
+    "details": "具体评估说明"
+  },
+  "quality": {
+    "score": 0,
+    "description": "质量指标：数量合理性和类型分布",
+    "details": "具体评估说明"
+  }
+}
+```
+<!-- OVERALL_METRICS_END -->
 
-    ---
+| 维度 | 评分（1-5） | 说明 |
+| :--- | :--- | :--- |
+| 完整性评估 |  | 功能覆盖度和场景完整性 |
+| 准确性评估 |  | 逻辑合理性和结果可验证性 |
+| 可执行性评估 |  | 操作具体性和环境清晰度 |
+| 质量指标 |  | 数量合理性和类型分布 |
 
-    ## 1. 评测总览
-    > 用简明的引用块总结AI用例与人工用例的优劣、整体表现和最终建议。
+## 3. 📋 单个用例评估
+<!-- INDIVIDUAL_EVALUATIONS_START -->
+```json
+[
+  {
+    "testCaseId": "用例标识或标题",
+    "testCaseTitle": "用例标题",
+    "scores": {
+      "logic": 0,
+      "clarity": 0,
+      "completeness": 0,
+      "executability": 0
+    },
+    "evaluation": {
+      "strengths": ["优点1", "优点2"],
+      "weaknesses": ["不足1", "不足2"],
+      "suggestions": ["建议1", "建议2"]
+    },
+    "overallRating": "A/B/C/D",
+    "summary": "该用例的总体评价"
+  }
+]
+```
+<!-- INDIVIDUAL_EVALUATIONS_END -->
 
-    ## 2. 整体评分表
-    | 维度 | 评分（1-5） |
-    | :--- | :--- |
-    | 核心场景覆盖度 |  |
-    | 测试深度与广度 |  |
-    | 创新性与附加值 |  |
-    | 简洁与无冗余   |  |
+### 详细用例评估
+对每个测试用例进行详细分析：
 
-    ## 3. 分项点评
-    对每个人工用例与AI用例的映射，分条列出：
-    ### - 人工用例：xxx
-    - **AI用例映射**：xxx
-    - **匹配说明**：xxx
-    - **评分**：
-      | 语义匹配度 | 表达清晰度 | 可执行性 | 自动化友好度 |
-      | :--- | :--- | :--- | :--- |
-      |   |   |   |   |
-    - **点评**：xxx
+#### 用例1：[用例标题]
+- **逻辑性评分**：X/5 - 评估说明
+- **清晰度评分**：X/5 - 评估说明
+- **完整性评分**：X/5 - 评估说明
+- **可执行性评分**：X/5 - 评估说明
+- **优点**：列出该用例的优势
+- **不足**：指出需要改进的地方
+- **建议**：提供具体的优化建议
+- **总体评级**：A/B/C/D级
 
-    ## 4. 黄金测试集推荐
-    如有必要，推荐一组经过重构的“黄金测试集”，以表格或列表形式展示。
+## 4. 📈 覆盖度分析
+- 功能模块覆盖情况
+- 测试类型分布（正常、异常、边界）
+- 优先级分布情况
 
-    ---
+## 5. 💡 改进建议
+### 5.1 补充测试场景
+- 建议添加的测试用例类型
+- 需要加强的测试领域
 
-    - 报告必须美观、分块、可直接渲染为Markdown。
-    - 所有评分均为1-5分，表格内容需补全。
-    - 禁止输出JSON或代码块，只能输出结构化Markdown。
-    """
+### 5.2 优化建议
+- 测试步骤优化建议
+- 测试数据改进建议
+- 预期结果完善建议
 
+## 6. ⭐ 质量评级
+**总体评级**：[A/B/C/D级] 
+**推荐使用度**：[高/中/低]
+**主要改进方向**：[简要说明]
+
+---
+
+- 报告必须美观、分块，使用emoji增强可读性
+- 所有评分均为1-5分，JSON和表格内容需补全
+- 必须包含完整的JSON格式数据用于程序解析
+- 提供具体、可操作的改进建议
+"""
+        else:
+            return f"""
+# 角色与使命
+
+你是一位首席质量保障架构师（Lead Quality Assurance Architect），同时扮演AI辅助测试教练（AI-Assistive QA Coach）的角色。你的核心使命是对比AI自动生成用例与人工参考用例，输出一份结构化、可视化的Markdown评测报告。
+
+## 评测内容分为两个层次：
+1. **整体评估**：对比两组测试集的整体表现，从策略和覆盖面给出顶层评估。
+2. **分项点评**：对每一个AI生成的测试用例进行独立、多维度的质量打分和诊断。
+
+# 评测框架与指导原则
+
+## A. 测试集整体评估维度（1-5分）
+- 核心场景覆盖度（Core Scenario Coverage）
+- 测试深度与广度（Test Depth & Breadth）
+- 创新性与附加值（Novelty & Value-Add）
+- 简洁与无冗余（Conciseness & No Redundancy）
+
+## B. 单个测试用例评估维度（1-5分）
+- 语义匹配度（Semantic Match）
+- 表达清晰度（Clarity）
+- 可执行性（Actionability）
+- 自动化友好度（Automation Friendliness）
+
+# 输入信息
+
+【人工参考用例 (Human Reference Cases)】：
+{human_reference_cases}
+
+【AI自动生成用例 (AI-Generated Cases)】：
+{ai_generated_cases}
+
+# 输出要求
+你必须输出一份结构化的Markdown评测报告，包含如下分块：
+
+---
+
+## 1. 📊 评测总览
+> 用简明的引用块总结AI用例与人工用例的优劣、整体表现和最终建议。
+
+## 2. 🎯 整体评估指标
+<!-- OVERALL_METRICS_START -->
+```json
+{
+  "completeness": {
+    "score": 0,
+    "description": "完整性评估：核心场景覆盖度",
+    "details": "具体评估说明"
+  },
+  "accuracy": {
+    "score": 0,
+    "description": "准确性评估：测试深度与广度",
+    "details": "具体评估说明"
+  },
+  "executability": {
+    "score": 0,
+    "description": "可执行性评估：创新性与附加值",
+    "details": "具体评估说明"
+  },
+  "quality": {
+    "score": 0,
+    "description": "质量指标：简洁与无冗余",
+    "details": "具体评估说明"
+  }
+}
+```
+<!-- OVERALL_METRICS_END -->
+
+| 维度 | 评分（1-5） |
+| :--- | :--- |
+| 核心场景覆盖度 |  |
+| 测试深度与广度 |  |
+| 创新性与附加值 |  |
+| 简洁与无冗余   |  |
+
+## 3. 📋 单个用例评估
+<!-- INDIVIDUAL_EVALUATIONS_START -->
+```json
+[
+  {
+    "testCaseId": "用例标识或标题",
+    "testCaseTitle": "用例标题",
+    "humanReference": "对应的人工参考用例",
+    "scores": {
+      "semanticMatch": 0,
+      "clarity": 0,
+      "executability": 0,
+      "automationFriendly": 0
+    },
+    "evaluation": {
+      "matchDescription": "匹配说明",
+      "strengths": ["优点1", "优点2"],
+      "weaknesses": ["不足1", "不足2"],
+      "suggestions": ["建议1", "建议2"]
+    },
+    "overallRating": "A/B/C/D",
+    "summary": "该用例的总体评价"
+  }
+]
+```
+<!-- INDIVIDUAL_EVALUATIONS_END -->
+
+### 详细用例对比评估
+对每个人工用例与AI用例的映射，分条列出：
+
+#### 用例对比1：
+- **人工用例**：xxx
+- **AI用例映射**：xxx
+- **匹配说明**：xxx
+- **评分**：
+  | 语义匹配度 | 表达清晰度 | 可执行性 | 自动化友好度 |
+  | :--- | :--- | :--- | :--- |
+  |   |   |   |   |
+- **优点**：列出该用例的优势
+- **不足**：指出需要改进的地方
+- **建议**：提供具体的优化建议
+- **总体评级**：A/B/C/D级
+---
+
+- 报告必须美观、分块，使用emoji增强可读性
+- 所有评分均为1-5分，JSON和表格内容需补全
+- 必须包含完整的JSON格式数据用于程序解析
+- 提供具体、可操作的改进建议
+            """
 
     @staticmethod
     def get_image_categorization_prompt(image_count: int) -> str:
@@ -228,7 +412,7 @@ class TestCasePrompts:
         structure_info: str, 
         ui_info: str, 
         context: str, 
-        requirements: str
+        human_reference_cases: str
     ) -> str:
         """生成最终的测试点生成Prompt"""
         return f"""
@@ -325,9 +509,9 @@ class TestCasePrompts:
     ```
     {context or '无额外上下文'}
     ```
-6.  **特殊要求**：
+6.  **人工参考用例**：
     ```
-    {requirements or '无特殊要求'}
+    {human_reference_cases or '无人工参考用例'}
     ```
 
 # 输出格式与约束

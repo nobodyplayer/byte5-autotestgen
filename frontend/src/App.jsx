@@ -282,7 +282,7 @@ function App() {
   };
 
   // 新增：生成功能测试点的处理函数
-  const handleGenerateTestPoints = async (context, requirements, prdImages = [], prdText = null, feishuUrl = null) => {
+  const handleGenerateTestPoints = async (context, humanReferenceCases, prdImages = [], prdText = null, feishuUrl = null, humanCasesCsvFile = null) => {
     if ((!prdImages || prdImages.length === 0) && !prdText && !feishuUrl) {
       alert('请上传PRD图片、输入PRD文本或提供飞书文档链接');
       return;
@@ -305,7 +305,13 @@ function App() {
         }
       }
       formData.append('context', context);
-      formData.append('requirements', requirements);
+      
+      // 处理人工参考用例：文本输入或CSV文件
+      if (humanCasesCsvFile) {
+        formData.append('human_cases_csv_file', humanCasesCsvFile);
+      } else if (humanReferenceCases) {
+        formData.append('human_reference_cases', humanReferenceCases);
+      }
 
       const response = await generateTestPoints(formData);
       const reader = response.body.getReader();
@@ -376,7 +382,7 @@ function App() {
     }
   };
 
-  const handleGenerateTestCases = async (context, requirements, prdImages = [], prdText = null, feishuUrl = null) => {
+  const handleGenerateTestCases = async (context, humanReferenceCases, prdImages = [], prdText = null, feishuUrl = null, humanCasesCsvFile = null) => {
     if ((!prdImages || prdImages.length === 0) && !prdText && !feishuUrl) {
       alert('请上传PRD图片、输入PRD文本或提供飞书文档链接');
       return;
@@ -400,7 +406,13 @@ function App() {
         }
       }
       formData.append('context', context);
-      formData.append('requirements', requirements);
+      
+      // 处理人工参考用例：文本输入或CSV文件
+      if (humanCasesCsvFile) {
+        formData.append('human_cases_csv_file', humanCasesCsvFile);
+      } else if (humanReferenceCases) {
+        formData.append('human_reference_cases', humanReferenceCases);
+      }
       const response = await generateTestCases(formData);
       console.log('收到后端响应:', response.status);
 

@@ -54,7 +54,7 @@ class TestCase(BaseModel):
 
 class TestCaseRequest(BaseModel):
     context: str
-    requirements: str
+    human_reference_cases: str
     
 class TestCaseResponse(BaseModel):
     test_cases: List[TestCase]

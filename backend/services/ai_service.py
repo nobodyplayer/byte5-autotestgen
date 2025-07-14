@@ -1,10 +1,9 @@
 import json
 import os
-from typing import List, Dict, Any, AsyncGenerator
 import re
+from typing import List, Dict, Any, AsyncGenerator
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import UserMessage, ModelClientStreamingChunkEvent
-from autogen_core import CancellationToken
 from utils.llms import model_client
 from .feishu_service import FeishuService
 from .prompts import TestCasePrompts, ErrorMessages
@@ -33,7 +32,7 @@ class AIService:
         prd_text: str = None,
         prd_images: List[str] = None,
         context: str = "",
-        requirements: str = ""
+        human_reference_cases: str = ""
     ) -> AsyncGenerator[str, None]:
         if feishu_url:
             print("获取飞书文档内容...\n")
@@ -67,7 +66,7 @@ class AIService:
             structure_info=image_analysis_results["structure_info"],
             ui_info=image_analysis_results["ui_info"],
             context=context,
-            requirements=requirements
+            human_reference_cases=human_reference_cases
         )
         agent = AssistantAgent(
             name="final_test_points_agent",
@@ -218,6 +217,176 @@ class AIService:
                 yield event.content
         # 流式输出结束后统一输出完整markdown内容
         yield f"\n\n**评测完成**\n\n<!-- MARKDOWN_CONTENT_START -->\n{markdown_buffer}\n<!-- MARKDOWN_CONTENT_END -->"
-          
-        print(markdown_buffer)
+    
+    async def generate_test_points_with_evaluation_stream(
+        self,
+        feishu_url: str = None,
+        prd_text: str = None,
+        prd_images: List[str] = None,
+        context: str = "",
+        human_reference_cases: str = ""
+    ) -> AsyncGenerator[str, None]:
+        """
+        生成测试点并自动进行评估的流式方法
+        """
+        # 第一步：生成测试点
+        yield "# 🚀 开始生成功能测试点...\n\n"
+        
+        test_points_buffer = ""
+        async for chunk in self.generate_test_points_stream(
+            feishu_url=feishu_url,
+            prd_text=prd_text,
+            prd_images=prd_images,
+            context=context,
+            human_reference_cases=human_reference_cases
+        ):
+            test_points_buffer += chunk
+            yield chunk
+        
+        # 第二步：进行自动评估    
+        yield "# 📊 开始自动化评估...\n\n"
+        ai_generated_cases = self._extract_test_cases_from_buffer(test_points_buffer)
+        evaluation_buffer = ""
+        yield f"✅ 成功提取AI生成的测试用例（{len(ai_generated_cases)}字符）\n\n"
+        async for chunk in self.evaluate_test_cases_stream(
+            ai_generated_cases=ai_generated_cases,
+            human_reference_cases=human_reference_cases or ""
+        ):
+            evaluation_buffer += chunk
+            yield chunk
+        
+        # 第三步：解析评估结果并输出结构化数据
+        try:
+            parsed_results = self.parse_evaluation_results(evaluation_buffer)
+            overall_summary = self.get_overall_metrics_summary(parsed_results["overall_metrics"])
+            
+            # 输出解析后的结构化数据，用于前端提取
+            yield f"\n\n<!-- EVALUATION_RESULTS_START -->\n"
+            yield f"```json\n{json.dumps(parsed_results, ensure_ascii=False, indent=2)}\n```\n"
+            yield f"<!-- EVALUATION_RESULTS_END -->\n\n"
+            
+            yield f"<!-- OVERALL_SUMMARY_START -->\n"
+            yield f"```json\n{json.dumps(overall_summary, ensure_ascii=False, indent=2)}\n```\n"
+            yield f"<!-- OVERALL_SUMMARY_END -->\n\n"
+            
+            print(f"评估完成，解析到 {len(parsed_results['individual_evaluations'])} 个用例评估")
+        except Exception as e:
+            print(f"解析评估结果时出错: {e}")
+            yield f"\n\n⚠️ 评估结果解析失败: {str(e)}\n\n"
+
+
+    def _extract_test_cases_from_buffer(self, buffer: str) -> str:
+        """
+        从生成的测试点缓冲区中提取测试用例文本
+        """
+        try:
+            # 尝试从JSON代码块中提取数据
+            json_block_regex = r'```json\s*({[\s\S]*?})\s*```'
+            json_block_match = re.search(json_block_regex, buffer)
+            
+            if json_block_match:
+                test_points_json = json.loads(json_block_match.group(1))
+                # 将JSON数据转换为文本格式
+                extracted_text = ""
+                for module_name, points in test_points_json.items():
+                    extracted_text += f"## {module_name}\n\n"
+                    for i, point in enumerate(points, 1):
+                        if isinstance(point, dict):
+                            title = point.get('title', point.get('name', f'测试点{i}'))
+                            desc = point.get('description', point.get('desc', ''))
+                            extracted_text += f"{i}. {title}\n{desc}\n\n"
+                        else:
+                            extracted_text += f"{i}. {point}\n\n"
+                return extracted_text
+            
+            # 如果没有找到JSON，返回原始缓冲区的清理版本
+            # 移除注释和特殊标记
+            cleaned_buffer = re.sub(r'<!-- .*? -->', '', buffer)
+            cleaned_buffer = re.sub(r'\*\*.*?完成\*\*', '', cleaned_buffer)
+            return cleaned_buffer.strip()
+            
+        except Exception as e:
+            print(f"提取测试用例时出错: {e}")
+            return buffer
+    
+    def parse_evaluation_results(self, evaluation_markdown: str) -> Dict[str, Any]:
+        """
+        解析评估结果，提取整体指标和单个用例评估数据
+        
+        参数:
+            evaluation_markdown: 评估结果的Markdown文本
+        
+        返回:
+            包含整体指标和单个用例评估的字典
+        """
+        result = {
+            "overall_metrics": {},
+            "individual_evaluations": [],
+            "raw_markdown": evaluation_markdown
+        }
+        
+        try:
+            # 提取整体指标JSON
+            overall_pattern = r'<!-- OVERALL_METRICS_START -->\s*```json\s*({[\s\S]*?})\s*```\s*<!-- OVERALL_METRICS_END -->'
+            overall_match = re.search(overall_pattern, evaluation_markdown)
+            if overall_match:
+                result["overall_metrics"] = json.loads(overall_match.group(1))
+            
+            # 提取单个用例评估JSON
+            individual_pattern = r'<!-- INDIVIDUAL_EVALUATIONS_START -->\s*```json\s*(\[[\s\S]*?\])\s*```\s*<!-- INDIVIDUAL_EVALUATIONS_END -->'
+            individual_match = re.search(individual_pattern, evaluation_markdown)
+            if individual_match:
+                result["individual_evaluations"] = json.loads(individual_match.group(1))
+                
+        except Exception as e:
+            print(f"解析评估结果时出错: {e}")
+            # 如果解析失败，返回空的结构化数据
+            result["overall_metrics"] = {
+                "completeness": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"},
+                "accuracy": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"},
+                "executability": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"},
+                "quality": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"}
+            }
+            result["individual_evaluations"] = []
+        
+        return result
+    
+    def get_overall_metrics_summary(self, overall_metrics: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        获取整体指标的摘要信息，用于按钮展示
+        
+        参数:
+            overall_metrics: 整体指标数据
+        
+        返回:
+            包含各指标摘要的字典
+        """
+        summary = {
+            "completeness": {
+                "name": "完整性指标",
+                "score": overall_metrics.get("completeness", {}).get("score", 0),
+                "description": overall_metrics.get("completeness", {}).get("description", ""),
+                "details": overall_metrics.get("completeness", {}).get("details", "")
+            },
+            "accuracy": {
+                "name": "准确性指标", 
+                "score": overall_metrics.get("accuracy", {}).get("score", 0),
+                "description": overall_metrics.get("accuracy", {}).get("description", ""),
+                "details": overall_metrics.get("accuracy", {}).get("details", "")
+            },
+            "executability": {
+                "name": "可执行性指标",
+                "score": overall_metrics.get("executability", {}).get("score", 0),
+                "description": overall_metrics.get("executability", {}).get("description", ""),
+                "details": overall_metrics.get("executability", {}).get("details", "")
+            },
+            "quality": {
+                "name": "质量指标",
+                "score": overall_metrics.get("quality", {}).get("score", 0),
+                "description": overall_metrics.get("quality", {}).get("description", ""),
+                "details": overall_metrics.get("quality", {}).get("details", "")
+            }
+        }
+        
+        return summary
        

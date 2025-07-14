@@ -54,7 +54,7 @@ python demo_feishu_integration.py
 curl -X POST "http://localhost:8000/api/test-cases/generate" \
   -H "Content-Type: multipart/form-data" \
   -F "context=移动应用用户注册功能" \
-  -F "requirements=需要测试用户注册的各种场景" \
+  -F "human_reference_cases=需要测试用户注册的各种场景" \
   -F "input_type=feishu" \
   -F "feishu_url=https://bytedance.feishu.cn/docx/your_document_token"
 ```
