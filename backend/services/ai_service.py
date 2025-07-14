@@ -29,7 +29,8 @@ class AIService:
         else:
             self.feishu_service = None
         # 初始化AI模型
-        self.llm, self.embeddings = initialize_llm("Volcengine", "doubao-Seed-1.6-thinking", "doubao-embedding")
+        self.llm, self.embeddings = initialize_llm("Volcengine", "doubao-1.5-pro-32k", "doubao-embedding")
+        self.storage = {}
 
     async def generate_test_cases_from_multimodal_prd_stream(
             self,
@@ -282,9 +283,16 @@ class AIService:
 
         try:
             # --- 1.状态对象初始化 ---
-            if not session.get("state"):
-                session["state"] = state.create_default_state()
-            sta = session["state"]
+            # if not session.get("state"):
+            #     session["state"] = state.create_default_state()
+            # sta = session["state"]
+
+            if not session.get("user_id"):
+                yield "### 错误，没有用户信息\n"
+                return
+            if not self.storage.get("user_id"):
+                self.storage["user_id"] = state.create_default_state()
+            sta = self.storage["user_id"]
             sta["prd_content"] = prd_text
             yield "### 阶段一：需求文档分析与测试点提取\n"
             yield f"分析中... (最多进行5轮迭代，目标评估分数 > 4.0)\n\n"
@@ -328,11 +336,17 @@ class AIService:
             # 取得分最高的测试点
             sta["detected_test_point_dict"] = best_record
             session["state"] = sta
+            yield f"测试点检测部分执行完毕"
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
             logger.error(f"!!!!!!!!!! 在执行需求点提取时发生严重错误 !!!!!!!!!!\n{error_details}")
             yield f"\n\n**致命错误:** 在执行需求点提取时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"
+
+    async def get_test_points(self, uid):
+        if not self.storage.get("user_id"):
+            return
+        return self.storage["user_id"]["detected_test_point_dict"]
 
     async def test_point_review(self, user_review, session):
         # --- 人工审核环节 ---
@@ -348,6 +362,7 @@ class AIService:
             detected = generator.analyser_agent_node(sta, self.llm)
             sta["detected_test_point_dict"] = detected
             session["state"] = sta
+            yield f"人工审核部分处理完毕"
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
@@ -518,3 +533,8 @@ class AIService:
             error_details = traceback.format_exc()
             logger.error(f"!!!!!!!!!! 在执行需求点审核时发生严重错误 !!!!!!!!!!\n{error_details}")
             yield f"\n\n**致命错误:** 在执行需求点审核时发生严重问题。\n\n**详情:**\n```\n{str(e)}\n```"
+
+    async def get_all_test_cases(self):
+        if not self.storage.get("user_id"):
+            return
+        return self.storage["user_id"]["priority_generated_cases"]

@@ -33,4 +33,5 @@ def create_default_state() -> TestCaseGenerationState:
         "generated_cases": [],
         "total_evaluation_report": {},
         "single_evaluation_report": [],
+        "priority_generated_cases": []
     }

@@ -31,6 +31,7 @@
   "devDependencies": {
     "@babel/plugin-transform-private-property-in-object": "^7.24.1"
   },
+  "proxy": "http://localhost:8000",
   "browserslist": {
     "production": [
       ">0.2%",

@@ -6,6 +6,9 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from models.test_case import TestCase
 from services.excel_service import excel_service
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/test-cases",
@@ -159,15 +162,24 @@ async def detect_test_point(
         prd_text: str = Form(None)
 ):
     # 获取服务与session
+    print("开始检测服务")
     ai_service = request.app.state.ai_service
     session = request.session
+    # set-cookie设置
+    if not session.get("user_id"):
+        session["user_id"] = os.urandom(32).hex()
     # 流式执行
+    headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",  # 要求客户端或代理不缓存此响应
+        "X-Accel-Buffering": "no"  # 一个常用于Nginx的指令，很多代理也会识别它，明确禁止缓冲
+    }
     return StreamingResponse(
         ai_service.detected_test_point(
             prd_text=prd_text or "",
             session=session
         ),
-        media_type="text/markdown"
+        headers=headers
     )
 
 
@@ -245,19 +257,31 @@ async def get_test_points(request: Request):
     """
     # 1. 通过注入的request对象，安全地获取session
     session = request.session
-
-    # 2. 安全地从session中获取state对象
-    # 使用 .get() 避免在 session 或 state 不存在时抛出 KeyError
-    state = session.get("state")
-    if not state:
+    if not session.get("user_id"):
         raise HTTPException(status_code=404, detail="Session中未找到状态信息，请先执行分析步骤。")
-
-    # 3. 安全地从state对象中获取测试点字典
-    test_points_dict = state.get("detected_test_point_dict")
+    ai_service = request.app.state.ai_service
+    test_points_dict = await ai_service.get_test_points(session["user_id"])
     if not test_points_dict:
         raise HTTPException(status_code=404, detail="状态中未找到已提取的测试点，请确认分析步骤是否成功完成。")
-
     # 4. 如果成功找到，直接返回该字典
     # FastAPI会自动将其序列化为JSON响应
     print(f"成功从Session中为用户检索到测试点数据: {test_points_dict}")
     return test_points_dict
+
+
+@router.get("/get_test_cases", response_model=List[TestCase])  # 假设TestCase是您的Pydantic模型
+async def get_all_test_cases(request: Request):
+    """
+    获取当前会话中存储的、最新的完整测试用例列表。
+    """
+    session = request.session
+    if not session.get("user_id"):
+        raise HTTPException(status_code=404, detail="Session中未找到状态信息，请先执行分析步骤。")
+    ai_service = request.app.state.ai_service
+
+    # 从我们之前迭代流程中最后保存的地方获取数据
+    all_cases = await ai_service.get_all_test_cases(session["user_id"])
+    if not all_cases:
+        raise HTTPException(status_code=404, detail="状态中未找到已生成的测试用例，请确认分析步骤是否成功完成。")
+    print(f"成功从Session中为用户检索到测试点数据: {all_cases}")
+    return all_cases

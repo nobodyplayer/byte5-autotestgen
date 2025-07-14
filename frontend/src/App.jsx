@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import React, {useEffect, useState} from 'react';
+import {createTheme, ThemeProvider} from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Container from '@mui/material/Container';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -16,7 +14,8 @@ import UploadArea from './components/UploadArea';
 import TestCaseDisplay from './components/TestCaseDisplay';
 import TestPointsDisplay from './components/TestPointsDisplay';
 import StreamingOutput from './components/StreamingOutput';
-import { generateTestCases, generateTestPoints, pingServer } from './services/api';
+import {detectTestPoint, generateTestCases, pingServer, getTestPoints, reviewTestCases, getAllTestCases} from './services/api';
+import GeneratedCaseDisplay from "./components/GeneratedCaseDisplay";
 
 // 创建现代化主题，参考 Notion、Linear 等产品设计
 const theme = createTheme({
@@ -263,6 +262,78 @@ function App() {
     checkServerConnection();
   }, []);
 
+  /**
+   * 更新单个测试用例的状态和反馈。
+   * 这个函数会作为prop传递给GeneratedCasesDisplay组件。
+   * @param {string} caseId - 需要更新的测试用例的ID
+   * @param {object} updates - 一个包含要更新字段的对象，例如 { status: 'Reconstructing', feedback: '...' }
+   */
+  const handleUpdateCase = (caseId, updates) => {
+    setTestCases(currentCases =>
+        currentCases.map(tc =>
+            tc.id === caseId
+                ? { ...tc, ...updates } // 如果ID匹配，则合并新旧对象，返回一个新对象
+                : tc // 否则返回原对象
+        )
+    );
+    console.log(`Updated case ${caseId} with:`, updates);
+  };
+
+
+  // =================================================================
+  //         👇 新增的 handleStartReconstruction 函数 👇
+  // =================================================================
+  /**
+   * 启动全局的测试用例重构流程。
+   * 这个函数也会作为prop传递给GeneratedCasesDisplay组件。
+   */
+  const handleStartReconstruction = async () => {
+    // 1. 从当前状态中，筛选出所有需要重构的用例
+    const casesToReconstruct = testCases.filter(
+        tc => tc.status === 'Reconstructing'
+    );
+
+    if (casesToReconstruct.length === 0) {
+      alert('没有需要重构的测试用例。请先在用例上点击“请求修订”。');
+      return;
+    }
+
+    // 2. 设置加载状态，并清空旧的流式输出
+    setIsGenerating(true);
+    setStreamingOutput('');
+
+    try {
+      // 3. 调用API，将待办任务列表发送给后端
+      const response = await reviewTestCases(casesToReconstruct, "");
+
+      // 4. 处理返回的流式日志
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        setStreamingOutput(prev => prev + chunk);
+      }
+
+      // 5. 执行获取最新的测试用例内容
+      console.log('正在获取重构完的完整测试用例列表...')
+      const latestTestCases = await getAllTestCases(); // 假设有这么一个解析函数
+
+      // 6. 直接用服务器返回的最新数据，覆盖前端的整个状态
+      setTestCases(latestTestCases);
+      alert('测试用例重构完成，列表已更新！');
+    } catch (error) {
+      console.error("重构流程失败:", error);
+      alert(`重构失败: ${error.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+
   const handleImageUpload = (file) => {
     setUploadedImage(file);
     // 重置之前的结果
@@ -297,7 +368,8 @@ function App() {
       formData.append('context', context);
       formData.append('requirements', requirements);
 
-      const response = await generateTestPoints(formData);
+      // 数据流读取器
+      const response = await detectTestPoint(formData);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -312,52 +384,12 @@ function App() {
       }
 
       // 流式输出结束后，从markdown内容中解析JSON
-      console.log('流式输出完成，开始解析功能测试点...');
-      console.log('完整的响应内容:', buffer);
-      
-      // 尝试从JSON代码块中提取数据
-      const jsonBlockRegex = /```json\s*({[\s\S]*?})\s*```/;
-      const jsonBlockMatch = buffer.match(jsonBlockRegex);
-      
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        try {
-          const testPointsJson = JSON.parse(jsonBlockMatch[1]);
-          console.log('从JSON代码块解析的功能测试点数据:', testPointsJson);
-          setTestPoints(testPointsJson);
-        } catch (parseError) {
-          console.error('解析JSON代码块失败:', parseError);
-          // 如果JSON代码块解析失败，尝试查找纯JSON对象
-          const pureJsonRegex = /({\s*"[^"]+"\s*:\s*\[[^\]]*\][\s\S]*?})/;
-          const pureJsonMatch = buffer.match(pureJsonRegex);
-          
-          if (pureJsonMatch && pureJsonMatch[1]) {
-            try {
-              const testPointsJson = JSON.parse(pureJsonMatch[1]);
-              console.log('从纯JSON解析的功能测试点数据:', testPointsJson);
-              setTestPoints(testPointsJson);
-            } catch (pureJsonError) {
-              console.error('解析纯JSON也失败:', pureJsonError);
-            }
-          }
-        }
-      } else {
-        console.warn('未找到JSON代码块，尝试查找纯JSON对象');
-        // 如果没有找到JSON代码块，尝试查找纯JSON对象
-        const pureJsonRegex = /({\s*"[^"]+"\s*:\s*\[[^\]]*\][\s\S]*?})/;
-        const pureJsonMatch = buffer.match(pureJsonRegex);
-        
-        if (pureJsonMatch && pureJsonMatch[1]) {
-          try {
-            const testPointsJson = JSON.parse(pureJsonMatch[1]);
-            console.log('从纯JSON解析的功能测试点数据:', testPointsJson);
-            setTestPoints(testPointsJson);
-          } catch (pureJsonError) {
-            console.error('解析纯JSON失败:', pureJsonError);
-          }
-        } else {
-          console.warn('未找到任何可解析的JSON数据');
-        }
-      }
+      console.log('正在调用第二个接口获取结构化的测试点数据...');
+      const testPointsData = await getTestPoints(); // 调用新的数据接口
+
+      console.log('成功获取到测试点数据:', testPointsData);
+      setTestPoints(testPointsData); // 更新状态以显示TestPointsDisplay组件
+
     } catch (error) {
       console.error('生成功能测试点时出错:', error);
       alert('生成功能测试点时出错，请重试');
@@ -680,15 +712,17 @@ function App() {
                   ) : (isGenerating || streamingOutput) ? (
                     <StreamingOutput content={streamingOutput} />
                   ) : testCases.length > 0 ? (
-                    <TestCaseDisplay
-                      testCases={testCases}
-                      onExportToExcel={handleExportToExcel}
+                    <GeneratedCaseDisplay
+                        generatedCases={testCases}
+                        onStartReconstruction={handleStartReconstruction}
+                        onUpdateCase={handleUpdateCase}
                     />
                   ) : (
                     <Box sx={{ 
                       flexGrow: 1,
                       display: 'flex',
                       flexDirection: 'column',
+
                       alignItems: 'center',
                       justifyContent: 'center',
                       textAlign: 'center',

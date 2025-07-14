@@ -16,7 +16,7 @@ os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
 
 # 随机生成密钥
-SECRET_KEY = os.urandom(32).hex()
+SECRET_KEY = "f3a8b2e1c9d7a6b3f2e1d8c7b6a5d4c3b2a1f0e9d8c7b6a5d4c3b2a1f0e9d8c7"
 
 # 创建AI服务实例
 feishu_app_id = os.getenv("FEISHU_APP_ID")
