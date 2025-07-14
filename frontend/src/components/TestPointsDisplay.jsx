@@ -74,6 +74,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
   const [showCoverageAnalysis, setShowCoverageAnalysis] = useState(false); // 显示覆盖率分析
   const [showQualityMetrics, setShowQualityMetrics] = useState(false); // 显示质量指标
   const [exportFormat, setExportFormat] = useState('excel'); // 导出格式
+  const [optimizationRounds, setOptimizationRounds] = useState(3); // 多轮优化轮数
 
   // 计算总的测试点数量和统计信息
   const getTotalTestPoints = () => {
@@ -1428,34 +1429,47 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                }}
              />
             
-            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Button
-                 variant="contained"
-                 color="primary"
-                 sx={{ 
-                   textTransform: 'none',
-                   minWidth: 120,
-                   backgroundColor: '#28a745',
-                   '&:hover': { backgroundColor: '#218838' }
-                 }}
-                 onClick={handleLoopOptimization}
-               >
-                 生成测试用例
-               </Button>
-               
-               <Button
-                 variant="contained"
-                 sx={{ 
-                   textTransform: 'none',
-                   minWidth: 120,
-                   backgroundColor: '#f39c12',
-                   color: '#ffffff',
-                   '&:hover': { backgroundColor: '#e67e22' }
-                 }}
-                 onClick={handleLoopOptimization}
-               >
-                 回环优化
-               </Button>
+            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                 <Button
+                   variant="contained"
+                   sx={{ 
+                     textTransform: 'none',
+                     minWidth: 140,
+                     backgroundColor: '#f39c12',
+                     color: '#ffffff',
+                     '&:hover': { backgroundColor: '#e67e22' }
+                   }}
+                   onClick={handleLoopOptimization}
+                 >
+                   多轮自动化优化
+                 </Button>
+                 
+                 <TextField
+                   type="number"
+                   size="small"
+                   value={optimizationRounds}
+                   onChange={(e) => setOptimizationRounds(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                   inputProps={{ 
+                     min: 1, 
+                     max: 10,
+                     style: { textAlign: 'center', width: '60px' }
+                   }}
+                   sx={{
+                     width: '80px',
+                     '& .MuiOutlinedInput-root': {
+                       backgroundColor: '#ffffff',
+                       '& fieldset': { borderColor: '#f39c12' },
+                       '&:hover fieldset': { borderColor: '#e67e22' },
+                       '&.Mui-focused fieldset': { borderColor: '#e67e22' }
+                     }
+                   }}
+                 />
+                 
+                 <Typography variant="body2" sx={{ color: '#856404', fontWeight: 500 }}>
+                   轮
+                 </Typography>
+               </Box>
             </Box>
           </CardContent>
         </Card>
@@ -1679,6 +1693,28 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* 生成最终测试用例按钮 */}
+      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+        <Button
+          variant="contained"
+          size="large"
+          sx={{ 
+            textTransform: 'none',
+            minWidth: 200,
+            py: 1.5,
+            fontSize: '1.1rem',
+            fontWeight: 600,
+            backgroundColor: '#28a745',
+            '&:hover': { backgroundColor: '#218838' },
+            borderRadius: 2,
+            boxShadow: '0 4px 12px rgba(40, 167, 69, 0.3)'
+          }}
+          onClick={handleLoopOptimization}
+        >
+          生成最终测试用例
+        </Button>
+      </Box>
     </Paper>
   );
 };
