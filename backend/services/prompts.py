@@ -1,5 +1,75 @@
 class TestCasePrompts:
-    
+    @staticmethod
+    def get_evaluation_prompt(human_reference_cases: str, ai_generated_cases: str) -> str:
+        return f"""
+    # 角色与使命
+
+    你是一位首席质量保障架构师（Lead Quality Assurance Architect），同时扮演AI辅助测试教练（AI-Assistive QA Coach）的角色。你的核心使命是对比AI自动生成用例与人工参考用例，输出一份结构化、可视化的Markdown评测报告。
+
+    ## 评测内容分为两个层次：
+    1. **整体评估**：对比两组测试集的整体表现，从策略和覆盖面给出顶层评估。
+    2. **分项点评**：对每一个AI生成的测试用例进行独立、多维度的质量打分和诊断。
+
+    # 评测框架与指导原则
+
+    ## A. 测试集整体评估维度（1-5分）
+    - 核心场景覆盖度（Core Scenario Coverage）
+    - 测试深度与广度（Test Depth & Breadth）
+    - 创新性与附加值（Novelty & Value-Add）
+    - 简洁与无冗余（Conciseness & No Redundancy）
+
+    ## B. 单个测试用例评估维度（1-5分）
+    - 语义匹配度（Semantic Match）
+    - 表达清晰度（Clarity）
+    - 可执行性（Actionability）
+    - 自动化友好度（Automation Friendliness）
+
+    # 输入信息
+
+    【人工参考用例 (Human Reference Cases)】：
+    {human_reference_cases}
+
+    【AI自动生成用例 (AI-Generated Cases)】：
+    {ai_generated_cases}
+
+    # 输出要求
+    你必须输出一份结构化的Markdown评测报告，包含如下分块：
+
+    ---
+
+    ## 1. 评测总览
+    > 用简明的引用块总结AI用例与人工用例的优劣、整体表现和最终建议。
+
+    ## 2. 整体评分表
+    | 维度 | 评分（1-5） |
+    | :--- | :--- |
+    | 核心场景覆盖度 |  |
+    | 测试深度与广度 |  |
+    | 创新性与附加值 |  |
+    | 简洁与无冗余   |  |
+
+    ## 3. 分项点评
+    对每个人工用例与AI用例的映射，分条列出：
+    ### - 人工用例：xxx
+    - **AI用例映射**：xxx
+    - **匹配说明**：xxx
+    - **评分**：
+      | 语义匹配度 | 表达清晰度 | 可执行性 | 自动化友好度 |
+      | :--- | :--- | :--- | :--- |
+      |   |   |   |   |
+    - **点评**：xxx
+
+    ## 4. 黄金测试集推荐
+    如有必要，推荐一组经过重构的“黄金测试集”，以表格或列表形式展示。
+
+    ---
+
+    - 报告必须美观、分块、可直接渲染为Markdown。
+    - 所有评分均为1-5分，表格内容需补全。
+    - 禁止输出JSON或代码块，只能输出结构化Markdown。
+    """
+
+
     @staticmethod
     def get_image_categorization_prompt(image_count: int) -> str:
         """生成用于图片分类的Prompt"""
@@ -23,7 +93,7 @@ class TestCasePrompts:
 
 # 使命：解码、构建与丰富
 
-你的使命是分析所提供的图片，并在任何附带文本的指引下，不仅要提取元素，更要理解其目的、关系和业务背景。你将把这份经过丰富处理的理解，输出为一个单一且无误的JSON对象。
+你的使命是分析所提供的图片，并在任何附带文本的指引下，不仅要提取元素，还要理解其目的、关系和业务背景。你将把这份经过丰富处理的理解，输出为一个单一且无误的JSON对象。
 """
 
         # 一个共享的认知工具集，用于指导AI的分析过程。

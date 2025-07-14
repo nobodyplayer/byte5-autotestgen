@@ -99,4 +99,53 @@ export const pingServer = async () => {
   }
 };
 
+// 自动化评测API函数
+export const evaluateTestCases = async (formData) => {
+  try {
+    console.log('API 服务: 发送自动化评测请求到后端...');
+    console.log('API 服务: 请求数据:', formData);
+
+    // 使用原生 fetch 来处理流式响应
+    const response = await fetch(`${API_BASE_URL}/test-cases/evaluate`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status} ${response.statusText}`);
+    }
+
+    return response;
+  } catch (error) {
+    console.error('API 服务: 自动化评测错误:', error);
+    throw error;
+  }
+};
+
+// JSON格式的自动化评测API函数
+export const evaluateTestCasesJson = async (evaluationData) => {
+  try {
+    console.log('API 服务: 发送JSON格式自动化评测请求到后端...');
+    console.log('API 服务: 请求数据:', evaluationData);
+
+    // 使用原生 fetch 来处理流式响应
+    const response = await fetch(`${API_BASE_URL}/test-cases/evaluate-json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(evaluationData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status} ${response.statusText}`);
+    }
+
+    return response;
+  } catch (error) {
+    console.error('API 服务: JSON格式自动化评测错误:', error);
+    throw error;
+  }
+};
+
 export default api;

@@ -8,14 +8,19 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import Header from './components/Header';
 import UploadArea from './components/UploadArea';
 import TestCaseDisplay from './components/TestCaseDisplay';
 import TestPointsDisplay from './components/TestPointsDisplay';
 import StreamingOutput from './components/StreamingOutput';
+import AutoEvaluation from './components/AutoEvaluation';
 import { generateTestCases, generateTestPoints, pingServer } from './services/api';
 
 // 创建现代化主题，参考 Notion、Linear 等产品设计
@@ -233,6 +238,7 @@ const theme = createTheme({
 });
 
 function App() {
+  const [activeTab, setActiveTab] = useState(0);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingOutput, setStreamingOutput] = useState('');
@@ -262,6 +268,10 @@ function App() {
 
     checkServerConnection();
   }, []);
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
 
   const handleImageUpload = (file) => {
     setUploadedImage(file);
@@ -603,121 +613,166 @@ function App() {
             </Paper>
           )}
 
-          <Box sx={{ 
-            display: 'flex', 
-            gap: { xs: 2, md: 4 },
-            flexDirection: { xs: 'column', lg: 'row' },
-            alignItems: 'stretch'
-          }}>
-            {/* 左侧区域 - 输入区域 */}
-            <Box sx={{ 
-              width: { xs: '100%', lg: '42%' }, 
-              minWidth: { lg: 420 },
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              <UploadArea
-          onImageUpload={handleImageUpload}
-          onGenerateTestCases={handleGenerateTestPoints}
-          isGenerating={isGenerating}
-          uploadedImage={uploadedImage}
-          serverStatus={serverStatus}
-        />
-            </Box>
+          {/* 标签页导航 */}
+          <Paper elevation={0} sx={{ mb: 3, borderRadius: 2 }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={handleTabChange}
+              sx={{ 
+                px: 2,
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  fontSize: '0.875rem',
+                  minHeight: 48,
+                  '&.Mui-selected': {
+                    fontWeight: 600,
+                  },
+                },
+                '& .MuiTabs-indicator': {
+                  height: 3,
+                  borderRadius: '3px 3px 0 0',
+                },
+              }}
+            >
+              <Tab 
+                icon={<SmartToyIcon />} 
+                iconPosition="start" 
+                label="AI测试用例生成" 
+                sx={{ gap: 1 }}
+              />
+              <Tab 
+                icon={<AssessmentIcon />} 
+                iconPosition="start" 
+                label="自动化评测" 
+                sx={{ gap: 1 }}
+              />
+            </Tabs>
+          </Paper>
 
-            {/* 右侧区域 - 输出 */}
+          {/* 标签页内容 */}
+          {activeTab === 0 && (
             <Box sx={{ 
-              width: { xs: '100%', lg: '58%' }, 
               display: 'flex', 
-              flexDirection: 'column'
+              gap: { xs: 2, md: 4 },
+              flexDirection: { xs: 'column', lg: 'row' },
+              alignItems: 'stretch'
             }}>
-              <Paper 
-                elevation={0}
-                sx={{ 
-                  p: { xs: 3, md: 4 }, 
-                  flexGrow: 1,
-                  minHeight: { xs: 400, md: 600 },
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center', 
-                  mb: 3,
-                  flexWrap: 'wrap',
-                  gap: 2
-                }}>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
-                      {isGenerating ? '正在生成功能测试点' : '功能测试点结果'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {isGenerating ? '请稍候，AI正在分析并生成功能测试点...' : 
-                       testCases.length > 0 ? `已生成 ${testCases.length} 个测试用例` : 
-                       '上传图片或输入PRD文本开始生成'}
-                    </Typography>
-                  </Box>
-                  {!isGenerating && testCases.length > 0 && (
-                    <Button
-                      variant="outlined"
-                      startIcon={<FileDownloadIcon />}
-                      onClick={handleExportToExcel}
-                      sx={{ flexShrink: 0 }}
-                    >
-                      导出Excel
-                    </Button>
-                  )}
-                </Box>
+              {/* 左侧区域 - 输入区域 */}
+              <Box sx={{ 
+                width: { xs: '100%', lg: '42%' }, 
+                minWidth: { lg: 420 },
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <UploadArea
+                  onImageUpload={handleImageUpload}
+                  onGenerateTestCases={handleGenerateTestPoints}
+                  isGenerating={isGenerating}
+                  uploadedImage={uploadedImage}
+                  serverStatus={serverStatus}
+                />
+              </Box>
 
-                <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  {/* 优先显示测试点结果，如果没有则显示流式输出，最后显示测试用例或空状态 */}
-                  {testPoints && Object.keys(testPoints).length > 0 ? (
-                    <TestPointsDisplay
-                      testPoints={testPoints}
-                    />
-                  ) : (isGenerating || streamingOutput) ? (
-                    <StreamingOutput content={streamingOutput} />
-                  ) : testCases.length > 0 ? (
-                    <TestCaseDisplay
-                      testCases={testCases}
-                      onExportToExcel={handleExportToExcel}
-                    />
-                  ) : (
-                    <Box sx={{ 
-                      flexGrow: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textAlign: 'center',
-                      py: 6
-                    }}>
-                      <Box sx={{ 
-                        width: 80, 
-                        height: 80, 
-                        borderRadius: '50%', 
-                        bgcolor: 'grey.100',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        mb: 3
-                      }}>
-                        <AutoAwesomeIcon sx={{ fontSize: 40, color: 'grey.400' }} />
-                      </Box>
-                      <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
-                        开始生成功能测试点
+              {/* 右侧区域 - 输出 */}
+              <Box sx={{ 
+                width: { xs: '100%', lg: '58%' }, 
+                display: 'flex', 
+                flexDirection: 'column'
+              }}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: { xs: 3, md: 4 }, 
+                    flexGrow: 1,
+                    minHeight: { xs: 400, md: 600 },
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    mb: 3,
+                    flexWrap: 'wrap',
+                    gap: 2
+                  }}>
+                    <Box>
+                      <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        {isGenerating ? '正在生成功能测试点' : '功能测试点结果'}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300 }}>
-                        选择图片上传或输入PRD文本，填写相关信息后点击生成按钮
+                      <Typography variant="body2" color="text.secondary">
+                        {isGenerating ? '请稍候，AI正在分析并生成功能测试点...' : 
+                         testCases.length > 0 ? `已生成 ${testCases.length} 个测试用例` : 
+                         '上传图片或输入PRD文本开始生成'}
                       </Typography>
                     </Box>
-                  )}
-                </Box>
-              </Paper>
+                    {!isGenerating && testCases.length > 0 && (
+                      <Button
+                        variant="outlined"
+                        startIcon={<FileDownloadIcon />}
+                        onClick={handleExportToExcel}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        导出Excel
+                      </Button>
+                    )}
+                  </Box>
+
+                  <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* 优先显示测试点结果，如果没有则显示流式输出，最后显示测试用例或空状态 */}
+                    {testPoints && Object.keys(testPoints).length > 0 ? (
+                      <TestPointsDisplay
+                        testPoints={testPoints}
+                      />
+                    ) : (isGenerating || streamingOutput) ? (
+                      <StreamingOutput content={streamingOutput} />
+                    ) : testCases.length > 0 ? (
+                      <TestCaseDisplay
+                        testCases={testCases}
+                        onExportToExcel={handleExportToExcel}
+                      />
+                    ) : (
+                      <Box sx={{ 
+                        flexGrow: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        py: 6
+                      }}>
+                        <Box sx={{ 
+                          width: 80, 
+                          height: 80, 
+                          borderRadius: '50%', 
+                          bgcolor: 'grey.100',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          mb: 3
+                        }}>
+                          <AutoAwesomeIcon sx={{ fontSize: 40, color: 'grey.400' }} />
+                        </Box>
+                        <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
+                          开始生成功能测试点
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300 }}>
+                          选择图片上传或输入PRD文本，填写相关信息后点击生成按钮
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Paper>
+              </Box>
             </Box>
-          </Box>
+          )}
+
+          {/* 自动化评测标签页 */}
+          {activeTab === 1 && (
+            <AutoEvaluation />
+          )}
         </Container>
       </Box>
     </ThemeProvider>

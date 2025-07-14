@@ -11,7 +11,6 @@ from .prompts import TestCasePrompts, ErrorMessages
 from .text_processor import TextProcessor
 from .image_processor import ImageProcessor
 
-
 class AIService:
     def __init__(self, feishu_app_id: str = None, feishu_app_secret: str = None):
         # 初始化飞书服务（如果提供了凭证）
@@ -85,27 +84,11 @@ class AIService:
                 markdown_buffer += event.content
                 yield event.content  # 实时将所有内容输出到前端
         
-        # 流式输出结束提示
-        yield "\n\n**输出结束**"
+        # 流式输出结束后固定markdown格式到前端
+        yield f"\n\n**输出结束**\n\n<!-- MARKDOWN_CONTENT_START -->\n{markdown_buffer}\n<!-- MARKDOWN_CONTENT_END -->"
         
         # 后台处理JSON解析（不输出到前端）
         print(markdown_buffer)
-        # if markdown_buffer:
-        #     json_match = re.search(r'```json\s*({.*?})\s*```', markdown_buffer, re.DOTALL)
-        #     if json_match:
-        #         json_content = json_match.group(1)
-        #         # 将JSON内容保存到类属性中，供前端API调用获取
-        #         self.last_test_points_json = json_content.strip()
-        #     else:
-        #         # 如果没有找到JSON代码块，尝试查找纯JSON对象
-        #         json_match = re.search(r'({\s*"[^"]+"\s*:\s*\[[^\]]*\].*?})', markdown_buffer, re.DOTALL)
-        #         if json_match:
-        #             json_content = json_match.group(1)
-        #             self.last_test_points_json = json_content.strip()
-        #         else:
-        #             # 如果都没找到，输出原始内容但加上警告
-        #             print(f"警告：未能从AI输出中提取到有效的JSON格式: {markdown_buffer[:200]}...")
-        #             self.last_test_points_json = '{"解析错误": ["AI输出格式不正确，请查看流式内容"]}'
         
     def generate_mindmap_from_test_cases(self, test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -214,5 +197,27 @@ class AIService:
                 valid_cases += 1
         
         return total_steps / valid_cases if valid_cases > 0 else 0.0
+    
+    async def evaluate_test_cases_stream(
+        self,
+        ai_generated_cases: str,
+        human_reference_cases: str
+    ) -> AsyncGenerator[str, None]:
+        evaluation_prompt = TestCasePrompts.get_evaluation_prompt(human_reference_cases, ai_generated_cases)
+        agent = AssistantAgent(
+            name="test_case_evaluator",
+            model_client=model_client,
+            system_message="你是专业的测试用例评估专家，请严格按照指定的JSON格式输出评估结果。",
+            model_client_stream=True,
+        )
+        yield "# 正在进行自动化评测...\n\n"
+        markdown_buffer = ""
+        async for event in agent.run_stream(task=evaluation_prompt):
+            if isinstance(event, ModelClientStreamingChunkEvent):
+                markdown_buffer += event.content
+                yield event.content
+        # 流式输出结束后统一输出完整markdown内容
+        yield f"\n\n**评测完成**\n\n<!-- MARKDOWN_CONTENT_START -->\n{markdown_buffer}\n<!-- MARKDOWN_CONTENT_END -->"
           
+        print(markdown_buffer)
        
