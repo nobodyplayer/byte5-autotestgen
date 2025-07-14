@@ -73,7 +73,6 @@ class FeishuService:
         
         # 获取访问令牌
         access_token = await self.get_access_token()
-        
         # 根据文档类型选择对应的API
         if doc_type == "docx":
             # 新版文档API
@@ -222,7 +221,6 @@ class FeishuService:
             with open(image_path, "wb") as f:
                 f.write(image_data)
             
-            print(f"成功保存飞书图片到: {image_path}")
             return image_path
             
         except Exception as e:
