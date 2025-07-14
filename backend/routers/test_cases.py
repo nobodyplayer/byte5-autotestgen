@@ -41,7 +41,6 @@ async def generate_test_cases(
     1. 数据预处理（文本切块、图片分类）
     2. 功能模块分解
     3. 按模块生成测试点
-    4. 自动调用评估模块进行质量评估
     支持两种输入模式：
     1. PRD输入（文本+多图片）：prd_text + images
     2. 飞书文档输入：feishu_url
@@ -70,7 +69,7 @@ async def generate_test_cases(
     if feishu_url:
         # 飞书文档模式
         return StreamingResponse(
-            ai_service.generate_test_points_with_evaluation_stream(
+            ai_service.generate_test_points_stream(
                 feishu_url=feishu_url,
                 context="",
                 human_reference_cases=human_cases_text
@@ -89,7 +88,7 @@ async def generate_test_cases(
                         buffer.write(content)
                     image_paths.append(file_path)
             return StreamingResponse(
-                ai_service.generate_test_points_with_evaluation_stream(
+                ai_service.generate_test_points_stream(
                     prd_text=prd_text,
                     prd_images=image_paths,
                     context="",

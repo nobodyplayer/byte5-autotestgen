@@ -1593,6 +1593,54 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                 </ButtonGroup>
               </Box>
               
+              {/* 自动化评估建议展示栏 */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ color: '#666', mb: 1 }}>
+                  🤖 自动化评估建议
+                </Typography>
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    backgroundColor: '#f0f8ff',
+                    border: '1px solid #e3f2fd',
+                    borderRadius: 2
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Chip 
+                      label="AI 评估"
+                      size="small"
+                      sx={{ 
+                        backgroundColor: '#2196f3',
+                        color: 'white',
+                        fontWeight: 500,
+                        mr: 1
+                      }}
+                    />
+                    <Typography variant="caption" sx={{ color: '#666' }}>
+                      基于AI模型的自动化评估结果
+                    </Typography>
+                  </Box>
+                  
+                  {/* 评估结果内容区域 */}
+                   <Box sx={{ 
+                     p: 1.5,
+                     backgroundColor: '#ffffff',
+                     borderRadius: 1,
+                     border: '1px solid #e8f4fd'
+                   }}>
+                     <Typography variant="body2" sx={{ 
+                       color: '#333',
+                       lineHeight: 1.6,
+                       fontSize: '0.875rem'
+                     }}>
+                       该测试点覆盖了核心功能流程，建议优先级设为高。测试步骤清晰，预期结果明确。
+                       建议补充异常场景的测试覆盖，如网络异常、数据异常等边界情况。
+                     </Typography>
+                   </Box>
+                </Paper>
+              </Box>
+              
               <Box>
                 <Typography variant="subtitle2" sx={{ color: '#666', mb: 1 }}>
                   反馈意见

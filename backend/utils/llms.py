@@ -16,7 +16,7 @@ def _setup_vllm_model_client():
         raise ValueError("请在环境变量VOLCENGINE_API_SECRET中配置有效的API Key")
 
     model_config = {
-        "model": "doubao-1-5-vision-pro-250328",
+        "model": "doubao-1-5-vision-lite-250315",
         "api_key": api_key,
         "model_info": {
             "vision": True,

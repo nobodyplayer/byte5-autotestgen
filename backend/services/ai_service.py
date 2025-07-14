@@ -254,13 +254,11 @@ class AIService:
         ):
             evaluation_buffer += chunk
             yield chunk
-        
         # 第三步：解析评估结果并输出结构化数据
         try:
             parsed_results = self.parse_evaluation_results(evaluation_buffer)
             overall_summary = self.get_overall_metrics_summary(parsed_results["overall_metrics"])
             
-            # 输出解析后的结构化数据，用于前端提取
             yield f"\n\n<!-- EVALUATION_RESULTS_START -->\n"
             yield f"```json\n{json.dumps(parsed_results, ensure_ascii=False, indent=2)}\n```\n"
             yield f"<!-- EVALUATION_RESULTS_END -->\n\n"
@@ -310,57 +308,39 @@ class AIService:
             return buffer
     
     def parse_evaluation_results(self, evaluation_markdown: str) -> Dict[str, Any]:
-        """
-        解析评估结果，提取整体指标和单个用例评估数据
-        
-        参数:
-            evaluation_markdown: 评估结果的Markdown文本
-        
-        返回:
-            包含整体指标和单个用例评估的字典
-        """
         result = {
             "overall_metrics": {},
-            "individual_evaluations": [],
-            "raw_markdown": evaluation_markdown
+            "individual_evaluations": []
         }
         
         try:
-            # 提取整体指标JSON
-            overall_pattern = r'<!-- OVERALL_METRICS_START -->\s*```json\s*({[\s\S]*?})\s*```\s*<!-- OVERALL_METRICS_END -->'
-            overall_match = re.search(overall_pattern, evaluation_markdown)
-            if overall_match:
-                result["overall_metrics"] = json.loads(overall_match.group(1))
+            # 查找所有JSON代码块
+            json_blocks = re.findall(r'```json\s*([\s\S]*?)```', evaluation_markdown)
             
-            # 提取单个用例评估JSON
-            individual_pattern = r'<!-- INDIVIDUAL_EVALUATIONS_START -->\s*```json\s*(\[[\s\S]*?\])\s*```\s*<!-- INDIVIDUAL_EVALUATIONS_END -->'
-            individual_match = re.search(individual_pattern, evaluation_markdown)
-            if individual_match:
-                result["individual_evaluations"] = json.loads(individual_match.group(1))
-                
+            for block in json_blocks:
+                try:
+                    # 简单清理：移除尾随逗号
+                    cleaned_block = re.sub(r',\s*([}\]])', r'\1', block.strip())
+                    parsed_json = json.loads(cleaned_block)
+                    
+                    # 判断是整体指标还是单个评估
+                    if isinstance(parsed_json, dict) and any(key in parsed_json for key in ['completeness', 'accuracy', 'executability', 'quality']):
+                        result["overall_metrics"] = parsed_json
+                        print(f"解析到整体指标")
+                    elif isinstance(parsed_json, list):
+                        result["individual_evaluations"] = parsed_json
+                        print(f"解析到 {len(parsed_json)} 个用例评估")
+                        
+                except json.JSONDecodeError:
+                    continue
+                    
         except Exception as e:
             print(f"解析评估结果时出错: {e}")
-            # 如果解析失败，返回空的结构化数据
-            result["overall_metrics"] = {
-                "completeness": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"},
-                "accuracy": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"},
-                "executability": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"},
-                "quality": {"score": 0, "description": "解析失败", "details": "无法解析评估数据"}
-            }
-            result["individual_evaluations"] = []
         
         return result
     
     def get_overall_metrics_summary(self, overall_metrics: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        获取整体指标的摘要信息，用于按钮展示
-        
-        参数:
-            overall_metrics: 整体指标数据
-        
-        返回:
-            包含各指标摘要的字典
-        """
+
         summary = {
             "completeness": {
                 "name": "完整性指标",
@@ -389,4 +369,3 @@ class AIService:
         }
         
         return summary
-       
