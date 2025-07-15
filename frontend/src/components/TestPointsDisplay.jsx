@@ -75,6 +75,7 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
   const [showQualityMetrics, setShowQualityMetrics] = useState(false); // 显示质量指标
   const [exportFormat, setExportFormat] = useState('excel'); // 导出格式
   const [optimizationRounds, setOptimizationRounds] = useState(3); // 多轮优化轮数
+const [roundsProgress, setRoundsProgress] = useState([]); // 多轮动画进度
 
   // 计算总的测试点数量和统计信息
   const getTotalTestPoints = () => {
@@ -216,24 +217,24 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
     // TODO: 这里可以调用API生成测试用例
   };
 
-  // 回环优化 - 针对所有模块的失败测试点
-  const handleLoopOptimization = () => {
+  // 回环优化 - 多轮动画进度
+  const handleLoopOptimization = async () => {
     const allFailedPoints = getAllFailedPoints();
-    
     if (Object.keys(allFailedPoints).length === 0) {
       alert('所有模块都没有未通过的测试点，无需回环优化。');
       return;
     }
-    
-    const optimizationData = {
-      allFailedPoints, // 所有模块的失败测试点
-      overallFeedback, // 对所有模块的整体评价
-      allModuleFeedbacks: getAllModuleFeedbacks(), // 所有模块的单个测试点反馈
-      failedPointsCount: Object.values(allFailedPoints).reduce((total, points) => total + points.length, 0)
-    };
-    
-    console.log('回环优化 - 数据:', optimizationData);
-    // TODO: 这里可以调用API进行回环优化
+    setRoundsProgress([]);
+    for (let i = 1; i <= optimizationRounds; i++) {
+      setRoundsProgress(prev => ([...prev, { round: i, status: '生成中', text: `第${i}轮：正在调用功能点生成agent进行用例生成...` }]));
+      await new Promise(res => setTimeout(res, 1000));
+      setRoundsProgress(prev => ([...prev.slice(0, i-1), { round: i, status: '已完成', text: `第${i}轮：用例已生成，正在调用功能点评估agent进行用例评估...` }]));
+      await new Promise(res => setTimeout(res, 1000));
+      setRoundsProgress(prev => ([...prev.slice(0, i-1), { round: i, status: '已完成', text: `第${i}轮：正在进行第${i}轮的回环优化...` }]));
+      await new Promise(res => setTimeout(res, 1000));
+      setRoundsProgress(prev => ([...prev.slice(0, i-1), { round: i, status: '已完成', text: `第${i}轮：回环优化已完成` }, ...prev.slice(i)]));
+    }
+    setRoundsProgress(prev => ([...prev, { round: '全部', status: '已完成', text: `全部${optimizationRounds}轮回环优化已完成！` }]));
   };
 
   // 处理模块切换
@@ -1472,7 +1473,41 @@ const TestPointsDisplay = ({ testPoints = {} }) => {
                </Box>
             </Box>
           </CardContent>
-        </Card>
+    </Card>
+
+    {/* 多轮自动化优化动画进度展示 */}
+    {roundsProgress.length > 0 && (
+      <Box sx={{ mt: 2, mb: 2 }}>
+        <Typography variant="h6">多轮自动优化进度</Typography>
+        {roundsProgress.map((item, idx) => (
+          <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Chip label={`第${item.round}轮`} color={item.status === '已完成' ? 'success' : 'primary'} sx={{ mr: 1 }} />
+            <Box sx={{ flex: 1, mx: 2 }}>
+              <Box sx={{ width: '100%', background: '#eee', borderRadius: 2, overflow: 'hidden', height: 12 }}>
+                <Box sx={{
+                  width: item.status === '生成中' ? `${(Math.abs(Math.sin(Date.now() / 300 + idx)) * 60 + 30).toFixed(0)}%` : '100%',
+                  background: item.status === '生成中' ? 'linear-gradient(90deg, #42a5f5 40%, #90caf9 100%)' : '#66bb6a',
+                  height: '100%',
+                  transition: 'width 0.5s',
+                  animation: item.status === '生成中' ? 'progressBarAnim 1.2s linear infinite' : 'none'
+                }} />
+              </Box>
+            </Box>
+            <Typography variant="body2" color={item.status === '生成中' ? 'primary' : 'success.main'} sx={{ minWidth: 60 }}>
+              {item.status}
+            </Typography>
+            <Typography sx={{ ml: 2 }}>{item.text}</Typography>
+          </Box>
+        ))}
+        <style>{`
+          @keyframes progressBarAnim {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+          }
+        `}</style>
+      </Box>
+    )}
 
 
       </Box>

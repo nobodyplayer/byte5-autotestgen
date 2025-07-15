@@ -278,7 +278,7 @@ class TestCasePrompts:
         flowchart_info: str, 
         structure_info: str, 
         ui_info: str, 
-        context: str, 
+        evaluation: str, 
         human_reference_cases: str
     ) -> str:
         """生成最终的测试点生成Prompt"""
@@ -372,9 +372,9 @@ class TestCasePrompts:
     ```
     {ui_info or '无相关UI图'}
     ```
-5.  **额外上下文**：
+5.  **之前的评估结果**：
     ```
-    {context or '无额外上下文'}
+    {evaluation or '无评估结果'}
     ```
 6.  **人工参考用例**：
     ```
