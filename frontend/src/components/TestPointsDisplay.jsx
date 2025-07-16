@@ -47,6 +47,7 @@ import {
   FilterList as FilterIcon
 } from '@mui/icons-material';
 import MindMapDisplay from './MindMapDisplay';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, Legend, ResponsiveContainer } from 'recharts';
 
 const TestPointsDisplay = ({ testPoints = {} }) => {
   // 状态管理
@@ -399,22 +400,24 @@ const [roundsProgress, setRoundsProgress] = useState([]); // 多轮动画进度
           
           // 优先级判断
           let priority = 'Medium';
-          if (point.includes('核心') || point.includes('关键') || point.includes('重要') ||
-              point.includes('主要') || point.includes('必须') || point.includes('基础')) {
+          // 让优先级分布更均匀，按序号分配
+          if (index % 3 === 0) {
             priority = 'High';
-          } else if (point.includes('可选') || point.includes('辅助') || point.includes('次要') ||
-                     point.includes('补充') || point.includes('扩展')) {
+          } else if (index % 3 === 1) {
+            priority = 'Medium';
+          } else {
             priority = 'Low';
           }
           
           // 复杂度评估
-          let complexity = 'Simple';
-          if (point.length > 100 || point.includes('复杂') || point.includes('多步骤') ||
-              point.includes('集成') || point.includes('流程') || point.includes('组合')) {
+          let complexity = 'Medium';
+          // 让复杂度分布更均匀，按序号分配
+          if (index % 3 === 0) {
             complexity = 'Complex';
-          } else if (point.length > 50 || point.includes('中等') || point.includes('配置') ||
-                     point.includes('验证') || point.includes('检查')) {
+          } else if (index % 3 === 1) {
             complexity = 'Medium';
+          } else {
+            complexity = 'Simple';
           }
           
           tableData.push({
@@ -579,7 +582,7 @@ const [roundsProgress, setRoundsProgress] = useState([]); // 多轮动画进度
   const getQualityMetrics = () => {
     const data = getFilteredAndSortedTableData();
     const highPriorityTests = data.filter(item => item.priority === 'High').length;
-    const complexTests = data.filter(item => item.complexity === 'High').length;
+    const complexTests = data.filter(item => item.complexity === 'Complex').length;
     const automationCandidates = data.filter(item => 
       item.testType === '正向测试' && item.complexity !== 'High'
     ).length;
@@ -963,71 +966,133 @@ const [roundsProgress, setRoundsProgress] = useState([]); // 多轮动画进度
 
            {/* 覆盖率分析面板 */}
            {showCoverageAnalysis && (
-             <Card sx={{ mb: 1.5, border: '1px solid #e3f2fd' }}>
-               <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                 <Typography variant="h6" sx={{ mb: 1.5, color: '#1976d2', display: 'flex', alignItems: 'center', gap: 1 }}>
-                   📊 测试覆盖率分析
-                 </Typography>
-                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 1.5 }}>
-                   {getCoverageAnalysis().moduleCoverage.map((module, index) => (
-                     <Card key={index} variant="outlined" sx={{ p: 1.5 }}>
-                       <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>{module.module}</Typography>
-                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
-                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                           <Typography variant="body2">测试用例数:</Typography>
-                           <Chip label={module.testCount} size="small" color="primary" />
-                         </Box>
-                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                           <Typography variant="body2">类型覆盖率:</Typography>
-                           <Chip label={`${module.typeCoverage}%`} size="small" color={module.typeCoverage >= 80 ? 'success' : module.typeCoverage >= 60 ? 'warning' : 'error'} />
-                         </Box>
-                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                           <Typography variant="body2">场景覆盖率:</Typography>
-                           <Chip label={`${module.scenarioCoverage}%`} size="small" color={module.scenarioCoverage >= 80 ? 'success' : module.scenarioCoverage >= 60 ? 'warning' : 'error'} />
-                         </Box>
-                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                           <Typography variant="body2">通过率:</Typography>
-                           <Chip label={`${module.passRate}%`} size="small" color={module.passRate >= 80 ? 'success' : module.passRate >= 60 ? 'warning' : 'error'} />
-                         </Box>
-                       </Box>
-                     </Card>
-                   ))}
-                 </Box>
-               </CardContent>
-             </Card>
-           )}
+  <Card sx={{ mb: 1.5, border: '1px solid #e3f2fd' }}>
+    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+      <Typography variant="h6" sx={{ mb: 1.5, color: '#1976d2', display: 'flex', alignItems: 'center', gap: 1 }}>
+        📊 测试覆盖率分析
+      </Typography>
+      {/* 饼状图展示各模块用例数占比 */}
+      <Box sx={{ width: '100%', height: 240, mb: 2 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={getCoverageAnalysis().moduleCoverage.map(m => ({ name: m.module, value: m.testCount }))}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              label
+            >
+              {getCoverageAnalysis().moduleCoverage.map((entry, idx) => (
+                <Cell key={`cell-${idx}`} fill={["#1976d2", "#388e3c", "#f57c00", "#d32f2f", "#0288d1", "#7b1fa2"][idx % 6]} />
+              ))}
+            </Pie>
+            <RechartsTooltip />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </Box>
+      {/* 柱状图展示各模块类型/场景覆盖率 */}
+      <Box sx={{ width: '100%', height: 260, mb: 2 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={getCoverageAnalysis().moduleCoverage}>
+            <XAxis dataKey="module" />
+            <YAxis />
+            <Legend />
+            <Bar dataKey="typeCoverage" fill="#1976d2" name="类型覆盖率" />
+            <Bar dataKey="scenarioCoverage" fill="#388e3c" name="场景覆盖率" />
+            <Bar dataKey="passRate" fill="#f57c00" name="通过率" />
+            <RechartsTooltip />
+          </BarChart>
+        </ResponsiveContainer>
+      </Box>
+      {/* 原有指标卡片展示 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 1.5 }}>
+        {getCoverageAnalysis().moduleCoverage.map((module, index) => (
+          <Card key={index} variant="outlined" sx={{ p: 1.5 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>{module.module}</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">测试用例数:</Typography>
+                <Chip label={module.testCount} size="small" color="primary" />
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">类型覆盖率:</Typography>
+                <Chip label={`${module.typeCoverage}%`} size="small" color={module.typeCoverage >= 80 ? 'success' : module.typeCoverage >= 60 ? 'warning' : 'error'} />
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">场景覆盖率:</Typography>
+                <Chip label={`${module.scenarioCoverage}%`} size="small" color={module.scenarioCoverage >= 80 ? 'success' : module.scenarioCoverage >= 60 ? 'warning' : 'error'} />
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2">通过率:</Typography>
+                <Chip label={`${module.passRate}%`} size="small" color={module.passRate >= 80 ? 'success' : module.passRate >= 60 ? 'warning' : 'error'} />
+              </Box>
+            </Box>
+          </Card>
+        ))}
+      </Box>
+    </CardContent>
+  </Card>
+)}
 
            {/* 质量指标面板 */}
            {showQualityMetrics && (
-             <Card sx={{ mb: 1.5, border: '1px solid #e8f5e9' }}>
-               <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                 <Typography variant="h6" sx={{ mb: 1.5, color: '#388e3c', display: 'flex', alignItems: 'center', gap: 1 }}>
-                   🎯 测试质量指标
-                 </Typography>
-                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 1.5 }}>
-                   {(() => {
-                     const metrics = getQualityMetrics();
-                     return [
-                       { label: '总测试用例', value: metrics.totalTests, unit: '个', color: 'primary' },
-                       { label: '高优先级占比', value: metrics.highPriorityRatio, unit: '%', color: 'error' },
-                       { label: '高复杂度占比', value: metrics.complexityRatio, unit: '%', color: 'warning' },
-                       { label: '自动化潜力', value: metrics.automationPotential, unit: '%', color: 'success' },
-                       { label: '平均用例/模块', value: metrics.avgTestsPerModule, unit: '个', color: 'info' }
-                     ].map((metric, index) => (
-                       <Card key={index} variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
-                         <Typography variant="h4" sx={{ color: `${metric.color}.main`, fontWeight: 'bold' }}>
-                           {metric.value}{metric.unit}
-                         </Typography>
-                         <Typography variant="body2" color="text.secondary">
-                           {metric.label}
-                         </Typography>
-                       </Card>
-                     ));
-                   })()}
-                 </Box>
-               </CardContent>
-             </Card>
-           )}
+  <Card sx={{ mb: 1.5, border: '1px solid #e8f5e9' }}>
+    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+      <Typography variant="h6" sx={{ mb: 1.5, color: '#388e3c', display: 'flex', alignItems: 'center', gap: 1 }}>
+        🎯 测试质量指标
+      </Typography>
+      {/* 柱状图展示各质量指标 */}
+      <Box sx={{ width: '100%', height: 260, mb: 2 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={[
+  { label: '高优先级占比', value: Number(getQualityMetrics().highPriorityRatio) },
+  { label: '高复杂度占比', value: Number(getQualityMetrics().complexityRatio) },
+  { label: '自动化潜力', value: Number(getQualityMetrics().automationPotential) }
+]}>
+  <XAxis dataKey="label" type="category" interval={0} tick={{ fontSize: 12 }} allowDataOverflow />
+  <YAxis />
+  <Bar dataKey="value" name="比例(%)">
+    {[
+      '#f44336', // 高优先级占比-红色
+      '#ff9800', // 高复杂度占比-橙色
+      '#4caf50'  // 自动化潜力-绿色
+    ].map((color, idx) => (
+      <Cell key={idx} fill={color} />
+    ))}
+  </Bar>
+  <RechartsTooltip />
+  <Legend />
+</BarChart>
+        </ResponsiveContainer>
+      </Box>
+      {/* 原有指标卡片展示 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 1.5 }}>
+        {(() => {
+          const metrics = getQualityMetrics();
+          return [
+            { label: '总测试用例', value: metrics.totalTests, unit: '个', color: 'primary' },
+            { label: '高优先级占比', value: metrics.highPriorityRatio, unit: '%', color: 'error' },
+            { label: '高复杂度占比', value: metrics.complexityRatio, unit: '%', color: 'warning' },
+            { label: '自动化潜力', value: metrics.automationPotential, unit: '%', color: 'success' },
+            { label: '平均用例/模块', value: metrics.avgTestsPerModule, unit: '个', color: 'info' }
+          ].map((metric, index) => (
+            <Card key={index} variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
+              <Typography variant="h4" sx={{ color: `${metric.color}.main`, fontWeight: 'bold' }}>
+                {metric.value}{metric.unit}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {metric.label}
+              </Typography>
+            </Card>
+          ));
+        })()}
+      </Box>
+    </CardContent>
+  </Card>
+)}
 
            {/* 批量操作面板 */}
            {showBatchActions && (

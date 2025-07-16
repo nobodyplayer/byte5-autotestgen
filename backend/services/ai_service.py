@@ -214,10 +214,17 @@ class AIService:
             session.coordinator.round = session.round_count
             session.generator.memory["last_evaluation"] = session.results["initial_evaluation"] if round_idx == 0 else session.results["optimization_history"][-1]["evaluation"]
             session.generator.memory["user_feedback"] = user_feedback
-            await session.generator.generate_reply([{"content": "优化测试用例"}])
+            async for chunk in session.generator.generate_reply([{"content": "优化测试用例"}]):
+                result+=chunk
+                yield chunk
+            yield f"\n\n**输出结束**\n\n<!-- MARKDOWN_CONTENT_START -->\n{result}\n<!-- MARKDOWN_CONTENT_END -->"
             optimized_cases = session.generator.memory["latest_cases"]
             session.evaluator.memory["latest_cases"] = optimized_cases
-            await session.evaluator.generate_reply([{"content": "评估优化后测试用例"}])
+            result = ""
+            async for chunk in session.evaluator.generate_reply([{"content": "评估优化后测试用例"}]):
+                result+=chunk
+                yield chunk
+            yield f"\n\n**输出结束**\n\n<!-- MARKDOWN_CONTENT_START -->\n{result}\n<!-- MARKDOWN_CONTENT_END -->"
             evaluation = session.evaluator.memory["last_evaluation"]
             session.results["optimization_history"].append({
                 "cases": optimized_cases,
