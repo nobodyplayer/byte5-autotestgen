@@ -227,11 +227,11 @@ const [roundsProgress, setRoundsProgress] = useState([]); // 多轮动画进度
     setRoundsProgress([]);
     for (let i = 1; i <= optimizationRounds; i++) {
       setRoundsProgress(prev => ([...prev, { round: i, status: '生成中', text: `第${i}轮：正在调用功能点生成agent进行用例生成...` }]));
-      await new Promise(res => setTimeout(res, 1000));
+      await new Promise(res => setTimeout(res, 2700));
       setRoundsProgress(prev => ([...prev.slice(0, i-1), { round: i, status: '已完成', text: `第${i}轮：用例已生成，正在调用功能点评估agent进行用例评估...` }]));
-      await new Promise(res => setTimeout(res, 1000));
+      await new Promise(res => setTimeout(res, 2700));
       setRoundsProgress(prev => ([...prev.slice(0, i-1), { round: i, status: '已完成', text: `第${i}轮：正在进行第${i}轮的回环优化...` }]));
-      await new Promise(res => setTimeout(res, 1000));
+      await new Promise(res => setTimeout(res, 2600));
       setRoundsProgress(prev => ([...prev.slice(0, i-1), { round: i, status: '已完成', text: `第${i}轮：回环优化已完成` }, ...prev.slice(i)]));
     }
     setRoundsProgress(prev => ([...prev, { round: '全部', status: '已完成', text: `全部${optimizationRounds}轮回环优化已完成！` }]));
@@ -1509,6 +1509,36 @@ const [roundsProgress, setRoundsProgress] = useState([]); // 多轮动画进度
       </Box>
     )}
 
+    {/* 新增：多轮结果导出为csv按钮 */}
+    {roundsProgress.length > 0 && (
+      <Box sx={{ mb: 2 }}>
+        <Button
+          variant="outlined"
+          color="primary"
+          size="small"
+          onClick={() => {
+            if (roundsProgress.length === 0) return;
+            const exportData = roundsProgress.map(item => ({
+              '轮次': item.round,
+              '状态': item.status,
+              '描述': item.text
+            }));
+            const csv = [Object.keys(exportData[0]).join(',')]
+              .concat(exportData.map(row => Object.values(row).join(',')))
+              .join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `多轮优化结果_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+          }}
+          sx={{ ml: 1 }}
+        >
+          将每轮结果导出为csv
+        </Button>
+      </Box>
+    )}
 
       </Box>
       
